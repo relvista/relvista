@@ -82,7 +82,9 @@ view when it has one.
 allowed): today only `detailLevel`, which overrides `settings.detailLevel` for that view
 (`viewDetailLevel` / `withViewDetailLevel` in `@relvista/core`). It lives in `settings` under an
 extension key rather than in `views`, because 1.0 rejects unknown keys in a view but keeps `x-*`
-keys of `settings` unread, so files that use it still load in 1.0.
+keys of `settings` unread, so files that use it still load in 1.0. Like any `x-*` key it accepts any
+value: readers ignore entries and values they do not understand (a misspelt level, a setting added
+by a later version), so a file never fails to load because of it.
 
 ### Stable ids
 
@@ -115,7 +117,8 @@ keys sorted recursively (by code unit), numbers rounded to 2 decimals, 2-space i
 newline. `zoom` keeps 4 significant digits instead, and a positive `w`/`h` is never rounded below
 `0.01`, so a valid layout always serializes to a valid file. `x-*` extension values are written exactly
 as given (only their key's position is sorted), except **relvista**'s own `x-relvista-view-settings`,
-which is sorted like the rest. Moving one table changes one or two lines.
+whose keys are sorted at every depth (its values are still written as given, never rounded). Moving
+one table changes one or two lines.
 
 ## Copies of the schema
 

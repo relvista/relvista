@@ -149,16 +149,49 @@ describe('schema and serialization', () => {
   });
 
   it.each([
-    [{ billing: { detailLevel: 'bogus' } }, 'must be equal to one of the allowed values'],
-    [{ billing: { detail: 'keys' } }, 'unknown property "detail"'],
-    [{ billing: 'keys' }, 'must be object'],
-    [{ '*': { detailLevel: 'keys' } }, 'invalid key "*"'],
-    [{ '': { detailLevel: 'keys' } }, 'invalid key ""'],
-  ])('rejects a malformed view settings value %j', (value, message) => {
-    const r = parseLayout({ ...withViews(), settings: { [VIEW_SETTINGS_KEY]: value } });
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.errors.map((e) => e.message).join('\n')).toContain(message);
+    [{ billing: { detailLevel: 'bogus' } }],
+    [{ billing: { detail: 'keys' } }],
+    [{ billing: 'keys' }],
+    [{ '*': { detailLevel: 'names' } }],
+    [{ '': { detailLevel: 'names' } }],
+    ['names'],
+    [['billing']],
+    [null],
+  ])('accepts and ignores a malformed view settings value %j, as 1.0 does', (value) => {
+    const l = { ...withViews(), settings: { detailLevel: 'keys', [VIEW_SETTINGS_KEY]: value } };
+    expect(validate10(JSON.parse(JSON.stringify(l)))).toBe(true);
+    const r = parseLayout(l);
+    expect(r.ok, JSON.stringify(!r.ok && r.errors)).toBe(true);
+    if (!r.ok) return;
+    expect(viewDetailLevel(r.layout, 'billing')).toBe('keys');
+    expect(viewDetailLevel(r.layout, DEFAULT_VIEW)).toBe('keys');
+    // Kept as written (keys sorted): another tool or version may understand it.
+    expect(JSON.parse(serializeLayout(r.layout)).settings[VIEW_SETTINGS_KEY]).toEqual(value);
+  });
+
+  it('keeps settings of a later version as written: sorted keys, numbers not rounded', () => {
+    const text = JSON.stringify({
+      version: 1,
+      views: { '*': { nodes: {} } },
+      settings: {
+        [VIEW_SETTINGS_KEY]: {
+          zeta: { future: { b: 0.123456, a: [3.14159, { y: 1, x: 2 }] }, detailLevel: 'names' },
+          alpha: { detailLevel: 'keys' },
+        },
+      },
+    });
+    const r = parseLayout(text);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(viewDetailLevel(r.layout, 'zeta')).toBe('names');
+    const out = serializeLayout(r.layout);
+    expect(out.indexOf('"alpha"')).toBeLessThan(out.indexOf('"zeta"'));
+    expect(out.indexOf('"detailLevel": "names"')).toBeLessThan(out.indexOf('"future"'));
+    const future = JSON.parse(out).settings[VIEW_SETTINGS_KEY].zeta.future;
+    expect(future).toEqual({ a: [3.14159, { x: 2, y: 1 }], b: 0.123456 });
+    expect(Object.keys(future.a[1])).toEqual(['x', 'y']);
+    const again = parseLayout(out);
+    expect(again.ok && serializeLayout(again.layout)).toBe(out);
   });
 
   it('still accepts other x- keys in settings with any value', () => {

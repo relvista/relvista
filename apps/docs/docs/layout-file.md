@@ -108,7 +108,8 @@ deleting a view in the editor moves or drops its entry. Docs diagrams with `view
 view's level; `detail=` and the toolbar still override it.
 
 It is an extension key, so **relvista** 1.0 loads these files and keeps the key as is; 1.0 just shows
-every view at `settings.detailLevel`.
+every view at `settings.detailLevel`. An entry relvista cannot read (a misspelt level, a setting
+from a later version) is ignored and kept, never an error.
 
 ## Stable ids
 

@@ -137,8 +137,9 @@ const EXTENSION_KEY = /^x-/;
 
 /**
  * Sorts keys recursively and rounds numbers. `x-*` extension values (at the top level and in
- * `settings`, where the schema allows them) are copied verbatim: only their key position is sorted. relvista's own
- * `settings[VIEW_SETTINGS_KEY]` is normalised like the rest.
+ * `settings`, where the schema allows them) are copied verbatim: only their key position is sorted.
+ * relvista's own `settings[VIEW_SETTINGS_KEY]` has its keys sorted too, at every depth, but its
+ * values are never rounded or dropped: a later version may store settings this one does not know.
  */
 function normalize(value: unknown, path: readonly string[]): unknown {
   const key = path[path.length - 1];
@@ -150,13 +151,24 @@ function normalize(value: unknown, path: readonly string[]): unknown {
     for (const k of Object.keys(value).sort(compareKeys)) {
       const v = (value as Record<string, unknown>)[k];
       if (v === undefined) continue;
-      // relvista's own extension key (`settings[VIEW_SETTINGS_KEY]`) is sorted like the rest.
-      const verbatim = extensionsHere && EXTENSION_KEY.test(k) && !isViewSettingsPath(path, k);
-      entries.push([k, verbatim ? v : normalize(v, [...path, k])]);
+      if (!extensionsHere || !EXTENSION_KEY.test(k)) entries.push([k, normalize(v, [...path, k])]);
+      else entries.push([k, isViewSettingsPath(path, k) ? sortKeys(v) : v]);
     }
     return fromEntries(entries);
   }
   return value;
+}
+
+/** Keys sorted recursively (undefined values dropped, as JSON does), every other value as given. */
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  const entries: [string, unknown][] = [];
+  for (const k of Object.keys(value).sort(compareKeys)) {
+    const v = (value as Record<string, unknown>)[k];
+    if (v !== undefined) entries.push([k, sortKeys(v)]);
+  }
+  return fromEntries(entries);
 }
 
 function isViewSettingsPath(path: readonly string[], key: string): boolean {
@@ -172,8 +184,8 @@ function compareKeys(a: string, b: string): number {
  * Deterministic serialization for minimal git diffs: keys sorted recursively, numbers rounded to
  * 2 decimals (zoom to 4 significant digits; a positive `w`/`h` never below 0.01), 2-space indent,
  * trailing newline. Array order (waypoints) is preserved, `x-*` extension values are written as
- * given (except relvista's own `settings["x-relvista-view-settings"]`, sorted like the rest). The
- * output of a valid layout always parses back as valid.
+ * given (relvista's own `settings["x-relvista-view-settings"]` with its keys sorted at every depth).
+ * The output of a valid layout always parses back as valid.
  */
 export function serializeLayout(layout: Layout): string {
   return `${JSON.stringify(normalize(layout, []), null, 2)}\n`;
