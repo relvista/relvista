@@ -83,11 +83,11 @@
     "@testing-library/react": "^16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "jsdom": "^27",
+    "jsdom": "^31",
     "react": "^19",
     "react-dom": "^19",
     "typescript": "~6.0.3",
-    "vitest": "^3.2.4",
+    "vitest": "^5.1.1",
     "prism-react-renderer": "^2.4.1",
     "@types/node": "^24",
     "@types/babel__core": "^7.20.5"

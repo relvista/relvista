@@ -40,6 +40,10 @@ function thirdParty(options: { main: boolean }): Plugin {
 const emptyModule = fileURLToPath(new URL('./src/stubs/empty.ts', import.meta.url));
 const JSPDF_OPTIONAL = ['html2canvas', 'canvg', 'dompurify'];
 
+// Licence comments (`/*! … */`, `@license`, `@preserve`) survive minification, in place; full
+// texts are in THIRD_PARTY_NOTICES.txt. Vite 8 drops them from minified output unless asked.
+const LICENCE_COMMENTS = { legal: true } as const;
+
 // Served at https://relvista.org/editor/ (copied into the docs build).
 export default defineConfig({
   base: process.env.RELVISTA_EDITOR_BASE ?? '/editor/',
@@ -50,14 +54,12 @@ export default defineConfig({
       replacement: emptyModule,
     })),
   },
-  // Licence comments (`/*! … */`, `@license`, `@preserve`) survive minification, at the end of
-  // each chunk; full texts are in THIRD_PARTY_NOTICES.txt.
-  esbuild: { legalComments: 'eof' },
   worker: {
     format: 'es',
+    rolldownOptions: { output: { comments: LICENCE_COMMENTS } },
     // No source maps for worker bundles: the SQL worker inlines @dbml/core (15 MB, every SQL
     // grammar) and its 45 MB map exhausts Node's default heap during the build. Vite copies
-    // `build.sourcemap` over `worker.rollupOptions.output`, so a plugin hook turns it off.
+    // `build.sourcemap` over `worker.rolldownOptions.output`, so a plugin hook turns it off.
     plugins: () => [
       {
         name: 'relvista:no-worker-sourcemaps',
@@ -70,12 +72,12 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
     chunkSizeWarningLimit: 5000,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
+        comments: LICENCE_COMMENTS,
         // Monaco changes far less often than the app: its own chunk caches across deploys.
-        manualChunks(id) {
-          if (id.includes('/node_modules/') && id.includes('/monaco-editor/')) return 'monaco';
-          return undefined;
+        codeSplitting: {
+          groups: [{ name: 'monaco', test: /\/node_modules\/(?:.+\/)?monaco-editor\// }],
         },
       },
     },
