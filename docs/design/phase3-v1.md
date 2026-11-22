@@ -1402,3 +1402,10 @@ Recorded by the 1.0 release preparation (2026-11-21):
   builds with `stripInternal`; `resolveView`/`viewTableEntries` are `@internal`, so the published
   `.d.ts` no longer import `@dbml/parse` types, whose declarations need `monaco-editor-core` and
   failed consumers with `skipLibCheck: false`.
+
+Recorded for 1.1 (2026-11-22):
+
+- **dagre row post-pass; `AUTO_DAGRE_MAX_NODES = 4`.** The port-aligning dagre pass the wave-1
+  note above anticipated is in (`layout-rows.ts`, [autolayout.md](autolayout.md)); the bench was
+  re-run with the signed-off rule unchanged and gives 4 (95 % on (a)+(c)+(d) up to 4 nodes).
+  Tables: decision 0003, "Re-measurement 2026-11-22".

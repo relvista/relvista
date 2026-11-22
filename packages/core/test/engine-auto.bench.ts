@@ -12,9 +12,10 @@
 //   (d) segment / unrelated-table intersections.
 // A case passes when dagre is within 5 % of ELK on (a)-(c) and not worse on (d).
 // The §3.3 rule takes the largest component size n such that the components of every size up to
-// n pass in >= 95 % of cases. (b) fails for most components of every size, two tables included
-// (dagre has no ports and does not align column rows), so AUTO_DAGRE_MAX_NODES is taken from
-// (a)+(c)+(d) instead; both values are printed. See docs/decisions/0003-viewer-bundle.md.
+// n pass in >= 95 % of cases. Without ports dagre failed (b) at every size, so the rule the owner
+// signed off takes AUTO_DAGRE_MAX_NODES from (a)+(c)+(d) only; both values are printed. Re-run
+// this after any change to the dagre engine (its row post-pass included) and record the tables in
+// docs/decisions/0003-viewer-bundle.md.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -241,7 +242,7 @@ function measureGeometry(model: DiagramModel, geo: DiagramGeometry): Metrics {
 
 const within = (d: number, e: number) => d <= e * 1.05 + 1e-9;
 
-/** (a), (c) and (d) only: dagre has no ports, so (b) fails structurally (decision 0003). */
+/** (a), (c) and (d) only: the rule signed off in decision 0003 (route length is not in it). */
 const passWithoutLength = (c: Case) =>
   within(c.dagre.crossings, c.elk.crossings) &&
   within(c.dagre.area, c.elk.area) &&

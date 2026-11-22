@@ -56,8 +56,11 @@ describe('engine auto', () => {
   it('small components never import elkjs and equal the dagre layout', async () => {
     for (const model of [
       example('01-minimal.dbml'),
+      example('03-enums-and-notes.dbml'),
       example('04-indexes-and-checks.dbml'),
+      example('06-header-colors.dbml'),
       example('07-sticky-notes.dbml'),
+      example('09-table-partials.dbml'),
       example('10-records.dbml'),
       chains(AUTO_DAGRE_MAX_NODES, 3),
     ]) {

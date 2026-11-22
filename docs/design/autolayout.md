@@ -12,7 +12,7 @@
 layoutDiagram(model, options?: AutoLayoutOptions): Promise<DiagramGeometry>  // ELK (default), auto, dagre, grid
 layoutDiagramSync(model, options?: LayoutOptions): DiagramGeometry           // dagre (default) or grid
 needsElk(model, options?: LayoutOptions): boolean   // would engine 'auto' run ELK at all?
-AUTO_DAGRE_MAX_NODES = 3                            // 'auto': dagre up to this component size
+AUTO_DAGRE_MAX_NODES = 4                            // 'auto': dagre up to this component size
 collapsedGroupIds(model, saved): Set<string>        // groups the saved layout marks collapsed
 measureCollapsedGroup(group, tableCount, measure?)  // size of a collapsed group card
 displayNodeOf(tableId, model, collapsed): string    // table id, or group:<name> when collapsed
@@ -101,12 +101,13 @@ plain `w`/`h` override.
 ## Engine `auto`
 
 Per connected component of free nodes: dagre (`dagreComponent`, no routes) when it has at most
-`AUTO_DAGRE_MAX_NODES` (3) nodes and no TableGroup with members in it, else ELK. Components
+`AUTO_DAGRE_MAX_NODES` (4) nodes and no TableGroup with members in it, else ELK. Components
 without refs never run ELK in either case (grid placement), so `needsElk(model, options)` is true
 only when some free component has refs and is above the threshold or holds a group. elkjs is not
 imported when no component needs it. `layoutDiagram`'s default stays `elk`; the canvas opts into
-`auto` (phase 3 wave 2). The threshold comes from `test/engine-auto.bench.ts`; the table and the
-reasoning (dagre's longer port-to-port segments) are in decision 0003.
+`auto` (phase 3 wave 2). The threshold comes from `test/engine-auto.bench.ts` with the rule the
+owner signed off (dagre within 5 % of ELK on crossings, area and refs under tables in ≥ 95 % of
+components); the tables are in decision 0003 (3 at first, 4 since the row post-pass below).
 
 ## ELK engine (`elk.ts`)
 

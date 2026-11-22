@@ -30,10 +30,11 @@ import { collapsedGroupIds } from './collapse.js';
 /**
  * `engine: 'auto'` lays out a connected component of free nodes with dagre when it has at most
  * this many nodes and no TableGroup with members in it, else with ELK. Chosen from the
- * measurement in `test/engine-auto.bench.ts` (decision 0003): up to 3 nodes dagre matches ELK on
- * crossings, area and refs under tables in >= 95 % of components.
+ * measurement in `test/engine-auto.bench.ts` (decision 0003, re-measured 2026-11-22 with the
+ * dagre row post-pass): up to 4 nodes dagre matches ELK on crossings, area and refs under tables
+ * in >= 95 % of components.
  */
-export const AUTO_DAGRE_MAX_NODES = 3;
+export const AUTO_DAGRE_MAX_NODES = 4;
 
 /** Options of `layoutDiagram`: the contract's `LayoutOptions` plus ELK worker support. */
 export interface AutoLayoutOptions extends LayoutOptions {
