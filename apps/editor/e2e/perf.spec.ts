@@ -14,7 +14,13 @@
  * `relvista:compile` performance marks.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { diagramReady, focusEditor, openEditor, pasteAtEnd } from './helpers.js';
+import {
+  diagramReady,
+  focusEditor,
+  openEditor,
+  openExampleFromMenu,
+  pasteAtEnd,
+} from './helpers.js';
 
 const CI = !!process.env.CI;
 /** CI runners get this much headroom over the design budgets. */
@@ -221,10 +227,7 @@ test('keystroke → diagram on 14-large ≤ 250 ms', async ({ page }) => {
   const workers: string[] = [];
   page.on('worker', (w) => workers.push(w.url()));
   await openEditor(page);
-  await page.getByRole('button', { name: 'New', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'From example' }).click();
-  await page.getByRole('menuitem', { name: /^Large SaaS schema/ }).click();
-  await diagramReady(page);
+  await openExampleFromMenu(page, /^Large SaaS schema/);
   await addProbe(page);
   await measure(page, 2); // warm-up (JIT, first worker message)
   await recordLongTasks(page);
