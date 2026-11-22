@@ -1148,10 +1148,14 @@ unplaced nodes, ELK not awaited).
 | Drag frame in 14-large                                | no task > 50 ms               | `apps/editor/e2e/perf.spec.ts`    |
 | Keystroke → diagram, 14-large                         | ≤ 250 ms                      | `apps/editor/e2e/perf.spec.ts`    |
 | Keystroke → diagram, 300 tables                       | ≤ 600 ms, no task > 50 ms     | `apps/editor/e2e/perf.spec.ts`    |
+| Open 600 tables (drop → final layout)                 | ≤ 4 s                         | `apps/editor/e2e/perf.spec.ts`    |
+| Keystroke → diagram, 600 tables                       | ≤ 800 ms, compiles in worker  | `apps/editor/e2e/perf.spec.ts`    |
+| Drag in 600 tables (each move, and the release)       | no task > 100 ms              | `apps/editor/e2e/perf.spec.ts`    |
 | Editor first load (unchanged)                         | ≤ 3 s                         | existing                          |
 | PDF, 14-large tiled A4 100 %                          | ≤ 3 s after libraries loaded  | `apps/editor/e2e/pdf.spec.ts`     |
 
-The 300-table fixture is generated in the test (seeded), not committed.
+The 300- and 600-table fixtures are generated in the test (seeded, one generator), not committed.
+The 600-table rows are recorded in §13 ("Recorded by the 1.1 large-schema work").
 
 ---
 
@@ -1498,3 +1502,65 @@ Recorded by the 1.1 bundle work (2026-11-22, branch `feat/docs-bundle`):
   moving `parseLayout` out of `layout/layout.ts` and loading it on use, or a standalone
   (precompiled) ajv validator, would take it out. The search panel and the diff code (~5 KB gzip
   each) still come with the viewer.
+
+Recorded by the 1.1 large-schema work (2026-11-22, branch `feat/perf-large`):
+
+- **Where the time went** (the perf test's generated 600-table schema, 186 KB, 599 refs; Chromium,
+  1360 × 900, Windows 10, 8 cores; before = `release/1.1`). Keystroke → diagram is the 150 ms
+  debounce, then the compile in the worker (~445 ms, 98 % of it inside `@dbml/parse` 12.1.0, whose
+  query cache recomputes `Filepath.toKey()` and compares the sources on every query), then the
+  canvas. Meanwhile `@dbml/parse`'s completion provider re-parses the whole file on the main
+  thread (~180 ms, from ~80 ms after the keydown), which also holds the debounce timer back by
+  ~110 ms. Before, every compile result drew all 600 cards and 599 ref lines again, twice (each
+  compile gives new model objects, and the spans of everything below an edit shift), and React
+  Flow measured every node again: ~205 + ~115 ms of main thread; a move of the cursor highlight
+  drew every card again too (~80 ms). A drag move cost ~72 ms, ~60 of it Chrome's layerization
+  (`PaintArtifactCompositor::Update`) of the 600 cards and the 599 per-edge `<svg>` React Flow 13
+  creates; letting go drew every line again (~200 + ~170 ms). Opening the file: the first compile
+  runs on the main thread (~560 ms; the file is under `WORKER_MAX_CHARS`), the first render
+  ~480 ms, the browser's layout ~220 ms, the sync dagre layout ~160 ms, then ELK in its worker.
+- **Changes** (renderer; drawings and exports unchanged: the static SVG of every example in four
+  variants and of the 600-table schema is byte-identical). React Flow nodes and edges that draw
+  the same as the ones shown are kept (`canvas/stable.ts`: deep equality that skips `span` keys),
+  with what React Flow added to them (measured size, handle positions), so an edit draws and
+  measures again only the tables and lines it changed. A node's handle set is part of its data:
+  a changed set makes a new node, which React Flow measures. `TableSvg` memoises the card apart
+  from its position and opacity, so dimming on hover draws no card again; the node components keep
+  the card's box object; the context carries the details card's id, not the table object (new on
+  every compile). The ref lines' transparent hit paths are `visibility: hidden`
+  (`pointer-events: stroke` still hit-tests them): painted, they added ~17 ms to every drag frame.
+- **Numbers** (medians of two runs of the perf project; the 600-table open and drag are new
+  measures, run on both versions):
+
+  | Measure                                     | Before                       | After                  |
+  | ------------------------------------------- | ---------------------------- | ---------------------- |
+  | Keystroke → diagram, 14-large               | 225 ms                       | 210 ms                 |
+  | Keystroke → diagram, 300 tables             | 565 ms                       | 463 ms                 |
+  | Long tasks per keystroke, 300 tables        | 3 (~95, ~111, ~53 ms)        | 1 (~92 ms, completion) |
+  | Keystroke → diagram, 600 tables             | 998 ms                       | 759 ms                 |
+  | Long tasks per keystroke, 600 tables        | 4 (~190, ~78, ~205, ~115 ms) | 1 (~180 ms)            |
+  | Open 600 tables: first table / final layout | 1.06 s / 2.83 s              | 1.07 s / 2.79 s        |
+  | Drag move, 600 tables (each)                | ~72 ms                       | ~55 ms                 |
+  | Drag release, 600 tables                    | ~197 + ~170 ms               | 60–88 ms               |
+
+  With the editor e2e's usual trace settings (DOM snapshots) the keystroke medians were 228, 594
+  and 1157 ms before, 215, 470 and 877 ms after. Docs viewer, 600 tables (a page with this schema,
+  not committed): layout done 4.5 → 4.2 s; a hover sweep over the diagram went from nine long
+  tasks of 66–143 ms (every card drawn again) to two or three of 50–63 ms, except that in some runs
+  Chrome's layerization of the dimmed diagram takes ~110 ms a hover change whatever relvista draws.
+
+- **Measuring.** Playwright's own work was inside the measured times: a trace with DOM snapshots
+  serialises the whole DOM before and after every action on the page's main thread (+~130 ms per
+  keystroke on 600 tables, +20–40 ms on 300), its screencast delays frames, and a failing locator
+  `expect` renders an aria snapshot of the page on every retry (0.5–0.75 s of main thread each on
+  600 tables, so "layout done" read 4.1–4.8 s instead of 2.8 s). The perf project now records
+  traces without snapshots and screencast, and the 600-table test waits on page flags.
+- Open: typing in a large schema still has one long task per keystroke, `@dbml/parse`'s completion
+  parse (moving the language service to a worker, or an incremental parse upstream); the compile
+  itself is `@dbml/parse`'s. At 600 tables drag and hover are bound by Chrome's layerization
+  (~45 ms a drag move, 50–110 ms a hover change); one SVG for all ref lines instead of React Flow's
+  one per edge, or markers without their own transforms, would shrink it but change the canvas DOM
+  (markers, the exported SVG too). The first compile of a file under `WORKER_MAX_CHARS` still runs
+  on the main thread. The first moves of a drag that selects a table cost ~190, ~120 and ~120 ms
+  (selection ring, the node lifted above the others); the test times a second drag of the same
+  table. §7's 14-large drag-frame row has no test yet.
