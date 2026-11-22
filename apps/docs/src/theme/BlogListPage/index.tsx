@@ -1,5 +1,5 @@
-// Wrapped (safe) from @docusaurus/theme-classic: while every post is unlisted (the 1.0 post until
-// release day, docs/releasing.md), /blog says so instead of showing an empty "Recent posts" list.
+// Wrapped (safe) from @docusaurus/theme-classic: if every post is unlisted, /blog says so instead
+// of showing an empty "Recent posts" list.
 import type { Props } from '@theme/BlogListPage';
 import BlogLayout from '@theme/BlogLayout';
 import Heading from '@theme/Heading';

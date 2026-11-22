@@ -61,14 +61,9 @@ const config: Config = {
           editUrl: `${repoUrl}/edit/main/apps/docs/`,
           remarkPlugins: [[npm2yarn, { sync: true, converters: ['yarn', 'pnpm'] }]],
         },
-        // The 1.0 announcement is `unlisted` until the packages are on npm (docs/releasing.md):
-        // built and reachable by its URL, but not in the blog list, feeds or the sitemap. Until a
-        // post is listed there are no feeds (they would be empty) and /blog says "No posts yet."
-        // (src/theme/BlogListPage). On release day delete `feedOptions` together with `unlisted`.
         blog: {
           blogTitle: 'relvista blog',
           blogDescription: 'Releases and news from relvista',
-          feedOptions: { type: null },
           showReadingTime: true,
           editUrl: `${repoUrl}/edit/main/apps/docs/`,
           remarkPlugins: [[npm2yarn, { sync: true, converters: ['yarn', 'pnpm'] }]],
@@ -137,6 +132,7 @@ const config: Config = {
         // The editor is a separate Vite app copied into build/editor/ (scripts/copy-editor.mjs).
         // `pathname://` links open in a new tab by default; the editor is part of this site.
         { to: 'pathname:///editor/', label: 'Editor', position: 'left', target: '_self' },
+        { to: '/blog', label: 'Blog', position: 'left' },
         { href: repoUrl, label: 'GitHub', position: 'right' },
       ],
     },

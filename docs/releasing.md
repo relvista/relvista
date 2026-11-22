@@ -108,7 +108,7 @@ disallow tokens**: from now on only the workflow (through OIDC) and you (with 2F
 
 - Create a GitHub release for 1.0 (the workflow creates them from 1.0.1 on), for example
   `gh release create "@relvista/docusaurus-plugin@1.0.0" --verify-tag --title "relvista 1.0" --notes-file packages/docusaurus-plugin/CHANGELOG.md`.
-- Publish the announcement post: in `apps/docs/blog/2026-11-21-relvista-1-0.md` delete the
+- Publish the announcement post: in `apps/docs/blog/<date>-relvista-1-0.md` delete the
   `unlisted: true` line (and rename the file to the release date), delete `feedOptions: { type: null }`
   from the blog options in `apps/docs/docusaurus.config.ts` (it turns the RSS and Atom feeds back
   on), and add a **Blog** item to the

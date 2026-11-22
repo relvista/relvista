@@ -23,8 +23,8 @@ dbdiagram.io uses.
 - **Core libraries** — `@relvista/core` (parser wrapper, diagram model, layout file, auto-layout)
   and `@relvista/renderer` (SVG, viewer, editable canvas, export), usable in any React 18 or 19 app.
 
-> Status: 1.0 is ready to release; the `@relvista/*` packages are not on npm yet (the npm badges
-> above show "not found" until they are, see [releasing](docs/releasing.md)).
+> Status: **1.0 is out** ([announcement](https://relvista.org/blog/relvista-1-0)); install with
+> `npm install @relvista/docusaurus-plugin`.
 > Editor: <https://relvista.org/editor/> ·
 > Docs and live gallery: <https://relvista.org/>
 
