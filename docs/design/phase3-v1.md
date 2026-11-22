@@ -640,6 +640,17 @@ export function planTiles(
   has such characters, that page is rendered as a 3× PNG image (existing `exportPng` path)
   instead, and the dialog says "Some text uses characters the PDF fonts lack; pages are
   embedded as images". Recorded in §13 as a follow-up (embedding a Noto subset).
+  **Since 1.1 (§13, decided):** text outside WinAnsi that a bundled font covers is drawn with an
+  embedded subset instead (`export/pdf/unicode.ts`): Noto Sans Regular/Bold (OFL 1.1; Latin,
+  Greek, Cyrillic) and a CJK font (Noto Sans' Latin/Greek/Cyrillic merged with Droid Sans
+  Fallback's CJK Unified Ideographs, kana and full-width forms, Apache 2.0; one weight). Each is a
+  generated module (`fonts/*.ts`, zlib + base64, 0.16 / 0.16 / 2.1 MB; `scripts/pdf-fonts.py`)
+  loaded with `import()` only for a document that needs it; jsPDF subsets it again (Identity-H with
+  a ToUnicode map, so text is extractable). The font is chosen per `<text>` after NFC: Noto Sans
+  if it covers the whole string, else the CJK font, else the page is a raster as before (Arabic,
+  Hebrew — no bidi or shaping in jsPDF —, Hangul, Indic scripts, emoji, CJK Extension A/B,
+  combining marks NFC keeps). `embedFonts: false` restores the 1.0 behaviour; a font that fails to
+  load falls back to raster. `pdfCanDrawText` lets the dialog's note use the same rule.
 - Hard limits: ≤ 200 pages (error otherwise, with a hint to lower the scale).
 - Tests (`test/pdf.test.ts`, jsdom): `planTiles` grids (exact counts for known sizes, overlap,
   orientation choice), `exportPdf` with `compress: false` → page count and `/MediaBox` sizes
@@ -1243,7 +1254,10 @@ and fixes only wiring. Anything beyond wiring goes back into §13.
 
 ## 13. Open questions (decide during build, record here)
 
-- Embedding a Unicode font subset in PDFs (instead of the raster fallback for non-WinAnsi text).
+- ~~Embedding a Unicode font subset in PDFs (instead of the raster fallback for non-WinAnsi
+  text).~~ Done for Latin, Greek, Cyrillic and CJK (§4.4 "Since 1.1"). Still raster: right-to-left
+  scripts and anything that needs shaping (would need a bidi pass and a shaper such as
+  HarfBuzz-wasm), Hangul (Droid Sans Fallback has no syllables; another font would add megabytes), emoji.
 - Reading git refs from a local `.git` folder opened with the File System Access API (packfiles
   and deltas) — out of v1; hosted URLs only.
 - Per-view detail level (layout-1 has one `settings.detailLevel`); would need `layout-2` or an
