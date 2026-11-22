@@ -96,7 +96,11 @@ test('Cyrillic and CJK stay text: embedded fonts, no image, extractable', async 
   const bytes = new Uint8Array(readFileSync(path));
   const raw = Buffer.from(bytes).toString('latin1');
   expect(raw).not.toContain('/Subtype /Image');
-  expect(raw).toContain('/FontFile2');
+  // The three subsets, each embedded under its own name: bold Noto Sans (the Cyrillic table
+  // name), regular Noto Sans (its column) and the CJK font (the other table).
+  expect(raw.match(/\/FontFile2 /g)).toHaveLength(3);
+  const names = [...raw.matchAll(/\/FontName \/(\w+)/g)].map((m) => m[1]).sort();
+  expect(names).toEqual(['rvpdfcjk', 'rvpdfsans', 'rvpdfsansbold']);
   // What a PDF reader extracts (pdf.js reads the fonts' ToUnicode maps).
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const task = getDocument({ data: bytes, verbosity: 0 });

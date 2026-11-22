@@ -174,13 +174,29 @@ function isBold(el: Element): boolean {
 }
 
 /**
- * Each `<text>` the page draws (`<title>` tooltips are not drawn) with characters outside
- * WinAnsi, with the bundled font that covers it (null: none does).
+ * The characters a `<text>` draws: its text nodes and those of its `<tspan>`s. `<title>` (a table
+ * name's tooltip, with the table note) and `<desc>` are never drawn, so their text does not count.
+ */
+function drawnText(el: Element): string {
+  let out = '';
+  for (const n of Array.from(el.childNodes)) {
+    if (n.nodeType === 3) out += n.nodeValue ?? '';
+    else if (n.nodeType === 1) {
+      const tag = (n as Element).tagName.toLowerCase();
+      if (tag !== 'title' && tag !== 'desc') out += drawnText(n as Element);
+    }
+  }
+  return out;
+}
+
+/**
+ * Each `<text>` the page draws with characters outside WinAnsi, with the bundled font that covers
+ * it (null: none does).
  */
 function unicodeTexts(svg: Element): Array<{ el: Element; font: PdfFontId | null }> {
   const out: Array<{ el: Element; font: PdfFontId | null }> = [];
   for (const el of Array.from(svg.getElementsByTagName('text'))) {
-    const text = el.textContent ?? '';
+    const text = drawnText(el);
     if (!isWinAnsi(text)) out.push({ el, font: unicodeFontFor(text, isBold(el)) });
   }
   return out;

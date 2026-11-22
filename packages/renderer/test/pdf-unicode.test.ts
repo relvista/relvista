@@ -97,6 +97,22 @@ describe('bundled font coverage', () => {
     expect(fontCovers('cjk', String.fromCodePoint(0xff21, 0xff22))).toBe(true); // full-width forms
   });
 
+  it('leaves combining marks NFC cannot compose and bidi controls to the raster fallback', () => {
+    // The fonts have these glyphs, but the PDF writer would draw marks unpositioned and ignores
+    // direction controls.
+    const titlo = String.fromCodePoint(0x0483); // Cyrillic combining titlo
+    const dotAbove = String.fromCodePoint(0x0307); // no precomposed ж + dot above
+    const rlo = String.fromCodePoint(0x202e); // right-to-left override
+    const lri = String.fromCodePoint(0x2066); // left-to-right isolate
+    expect(unicodeFontFor(`бог${titlo}`, false)).toBeNull();
+    expect(unicodeFontFor(`ж${dotAbove}`, true)).toBeNull();
+    expect(unicodeFontFor(`имя ${rlo}abc`, false)).toBeNull();
+    expect(unicodeFontFor(`${lri}用户`, false)).toBeNull();
+    // A mark NFC composes is fine (é), and so are zero-width joiners and spaces.
+    expect(unicodeFontFor(`имя e${String.fromCodePoint(0x301)}`, false)).toBe('sansRegular');
+    expect(unicodeFontFor(`имя${String.fromCodePoint(0x200b)}x`, false)).toBe('sansRegular');
+  });
+
   it('leaves scripts it cannot draw to the raster fallback', () => {
     expect(unicodeFontFor('مستخدم', false)).toBeNull(); // Arabic: right to left, shaped
     expect(unicodeFontFor('משתמש', false)).toBeNull(); // Hebrew: right to left
@@ -140,7 +156,9 @@ describe('exportPdf with text outside WinAnsi', { timeout: 60_000 }, () => {
     expect(pdf).not.toContain('/Subtype /Image');
     // Noto Sans regular (columns, header) and bold (table name), and the CJK font, each a subset.
     expect(pdf.match(/\/FontFile2 /g)).toHaveLength(3);
-    expect(pdf).toContain('/BaseFont /rvpdfsans');
+    // Each subset under a name of its own (tools that match fonts by name must not mix them up).
+    const names = [...pdf.matchAll(/\/FontName \/(\w+)/g)].map((m) => m[1]).sort();
+    expect(names).toEqual(['rvpdfcjk', 'rvpdfsans', 'rvpdfsansbold']);
     expect(pdf).toContain('/BaseFont /rvpdfcjk');
     expect(pdf).toContain('/Encoding /Identity-H');
     const [text] = await pageTexts(bytes);
@@ -217,6 +235,28 @@ describe('exportPdf with text outside WinAnsi', { timeout: 60_000 }, () => {
     );
     // The table name is bold, the column regular. No CJK.
     expect(loadFont.mock.calls.map(([id]) => id).sort()).toEqual(['sansBold', 'sansRegular']);
+  });
+
+  it('a table note (only in the name tooltip, never drawn) chooses no font and no raster', async () => {
+    exportPngMock.mockReset();
+    const loadFont = vi.fn(loadPdfFont);
+    // Latin names with a CJK note: no font at all, the table name stays bold Helvetica.
+    const cjkNote = await renderPdf(
+      [source('notes', model("Table users [note: '用户表'] {\n  id int\n}"))],
+      { mode: 'pages' },
+      { loadFont },
+    );
+    expect(cjkNote.rasterPages).toBe(0);
+    expect(loadFont).not.toHaveBeenCalled();
+    // Cyrillic name, a note with an arrow and an emoji no font has: still vector, Noto Sans bold.
+    const emojiNote = await renderPdf(
+      [source('notes', model("Table клиенты [note: 'see → orders 😀'] {\n  id int\n}"))],
+      { mode: 'pages' },
+      { loadFont },
+    );
+    expect(emojiNote.rasterPages).toBe(0);
+    expect(exportPngMock).not.toHaveBeenCalled();
+    expect(loadFont.mock.calls.map(([id]) => id)).toEqual(['sansBold']);
   });
 
   it('falls back to raster when a font cannot load, or with embedFonts: false', async () => {

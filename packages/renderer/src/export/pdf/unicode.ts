@@ -19,12 +19,16 @@ import { isWinAnsi } from './plan.js';
 /** An embeddable font. */
 export type PdfFontId = keyof typeof FONT_COVERAGE;
 
-/** jsPDF font name and style each font is registered under (and the CSS family svg2pdf sees). */
+/**
+ * jsPDF font name and style each font is registered under (and the CSS family svg2pdf sees). jsPDF
+ * writes the name as the PDF's `/BaseFont`, so every font has its own: two different subsets under
+ * one name get mixed up by tools that match fonts by name (merging, printing, preflight).
+ */
 export const PDF_FONTS: Readonly<
   Record<PdfFontId, { family: string; style: 'normal' | 'bold'; weight: number }>
 > = {
   sansRegular: { family: 'rvpdfsans', style: 'normal', weight: 400 },
-  sansBold: { family: 'rvpdfsans', style: 'bold', weight: 700 },
+  sansBold: { family: 'rvpdfsansbold', style: 'bold', weight: 700 },
   cjk: { family: 'rvpdfcjk', style: 'normal', weight: 400 },
 };
 
@@ -53,13 +57,22 @@ export function fontCovers(font: PdfFontId, text: string): boolean {
 }
 
 /**
+ * Combining marks NFC leaves (the PDF writer does not position them on their base letter) and
+ * bidirectional controls (right-to-left text): such text keeps the raster fallback even where a
+ * font has the glyphs.
+ */
+const UNPLACEABLE = /[\p{Mn}\p{Me}\u200E\u200F\u202A-\u202E\u2066-\u2069\u061C]/u;
+
+/**
  * The font that draws all of `text` (after NFC normalization), or null when none does and the
  * page has to be a raster. Latin, Greek and Cyrillic get Noto Sans in the weight asked for; text
  * with CJK gets the CJK font, regular weight.
  */
 export function unicodeFontFor(text: string, bold: boolean): PdfFontId | null {
   const t = text.normalize('NFC');
-  if (fontCovers('sansRegular', t)) return bold ? 'sansBold' : 'sansRegular';
+  if (UNPLACEABLE.test(t)) return null;
+  const sans: PdfFontId = bold ? 'sansBold' : 'sansRegular';
+  if (fontCovers(sans, t)) return sans;
   if (fontCovers('cjk', t)) return 'cjk';
   return null;
 }
@@ -98,18 +111,29 @@ async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+const loaded = new Map<PdfFontId, Promise<Uint8Array>>();
+
 /**
  * The TrueType file of `font`. Lazy: the first call for a font loads its module (0.16 MB for
- * each Noto Sans weight, 2.1 MB for CJK, deflated and base64-encoded) and inflates it.
+ * each Noto Sans weight, 2.1 MB for CJK, deflated and base64-encoded) and inflates it; later
+ * exports reuse the bytes (callers must not modify them). A failed load is tried again next time.
  */
-export async function loadPdfFont(font: PdfFontId): Promise<Uint8Array> {
-  const mod =
-    font === 'sansRegular'
-      ? await import('./fonts/sansRegular.js')
-      : font === 'sansBold'
-        ? await import('./fonts/sansBold.js')
-        : await import('./fonts/cjk.js');
-  return inflate(base64ToBytes(mod.data));
+export function loadPdfFont(font: PdfFontId): Promise<Uint8Array> {
+  let bytes = loaded.get(font);
+  if (!bytes) {
+    bytes = (async () => {
+      const mod =
+        font === 'sansRegular'
+          ? await import('./fonts/sansRegular.js')
+          : font === 'sansBold'
+            ? await import('./fonts/sansBold.js')
+            : await import('./fonts/cjk.js');
+      return inflate(base64ToBytes(mod.data));
+    })();
+    loaded.set(font, bytes);
+    bytes.catch(() => loaded.delete(font));
+  }
+  return bytes;
 }
 
 /** Bytes → the binary string jsPDF's virtual file system takes. */
