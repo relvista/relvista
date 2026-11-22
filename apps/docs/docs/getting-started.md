@@ -22,6 +22,24 @@ your files stay on your disk. This page is about adding diagrams to a Docusaurus
 - React 18 or 19 (Docusaurus supports React 19 from 3.7)
 - Node 20 or later
 
+:::note A new site on Docusaurus 3.6 to 3.10.0
+
+A fresh install of Docusaurus before 3.10.1 does not build, with or without relvista: today's
+webpack rejects the options of its progress bar
+(`ValidationError: Invalid options object. Progress Plugin has been initialized…`). Upgrade
+Docusaurus to 3.10.1 or later, switch to its faster bundler (`@docusaurus/faster`), or pin webpack:
+
+```json title="package.json"
+{
+  "overrides": { "webpack": "5.95.0" }
+}
+```
+
+Yarn calls it `resolutions`, pnpm `pnpm.overrides`. Sites whose lockfile already holds an older
+webpack are not affected.
+
+:::
+
 ## Install
 
 ```bash npm2yarn
