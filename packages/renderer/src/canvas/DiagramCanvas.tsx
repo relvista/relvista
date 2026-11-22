@@ -46,7 +46,8 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { renderDiagramSvgString } from '../export/svgString.js';
+import { domMarkup } from '../export/domMarkup.js';
+import { svgDocument } from '../export/svgDocument.js';
 import {
   computeBounds,
   computeGroups,
@@ -1897,7 +1898,8 @@ function CanvasInner({
         const L = live.current;
         if (!L.drawModel || !L.current) return null;
         const colorMode = o?.colorMode ?? L.colorMode;
-        return renderDiagramSvgString(L.drawModel, L.current, {
+        // Serialised by the browser: the canvas bundle does without react-dom/server.
+        return svgDocument(domMarkup, L.drawModel, L.current, {
           ...(L.decorations ? { decorations: L.decorations } : {}),
           detailLevel: L.detail,
           edgeStyle: L.edges_,
