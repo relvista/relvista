@@ -7,6 +7,15 @@ updates:
     open-pull-requests-limit: 10
     # Keep exact pins (e.g. "@dbml/parse": "12.1.0") exact; bump ranges only when needed.
     versioning-strategy: increase-if-necessary
+    ignore:
+      # @types/node tracks the Node versions we support (engines >=20, CI on .nvmrc 24), not the
+      # newest Node: a newer major would let code use APIs our users' Node does not have.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # Babel 8 needs Node ^22.18 || >=24.11 and is ESM-only; @babel/core is a runtime dependency of
+      # @relvista/docusaurus-plugin, which supports Node >=20. Revisit when a major drops Node 20.
+      - dependency-name: '@babel/core'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: chore
       include: scope

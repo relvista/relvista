@@ -23,6 +23,9 @@ const transformOf = (page: Page) =>
     .locator('.rv-canvas .react-flow__viewport')
     .evaluate((el) => (el as HTMLElement).style.transform);
 
+const numbersOf = (transform: string): number[] =>
+  (transform.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map(Number);
+
 const paused = (page: Page) => page.getByText('autosave is paused here');
 
 test('examples open at a readable zoom, not fitted to specks', async ({ page }) => {
@@ -52,7 +55,10 @@ test('reload restores the viewport and the Arranging chip goes away', async ({ p
   await page.reload();
   await expect(page.locator('.ed-app[data-ready="true"]')).toBeVisible();
   await diagramReady(page);
-  expect(await transformOf(page)).toBe(before);
+  // The layout file stores x/y to 2 decimals and zoom to 4 significant digits (core round2 /
+  // roundZoom), so the restored viewport matches to that precision, not to the last digit.
+  const after = numbersOf(await transformOf(page));
+  numbersOf(before).forEach((n, i) => expect(after[i]).toBeCloseTo(n, 2));
   await expect(page.getByText('Arranging…')).toHaveCount(0);
 });
 

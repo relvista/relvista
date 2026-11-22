@@ -101,4 +101,4 @@ The build records every npm package it bundles (main bundle and workers) in
 `node_modules/.cache/relvista-third-party/editor.json`; `pnpm notices` turns that and the docs
 site's list into the root `THIRD_PARTY_NOTICES.md`, which the build ships as
 `/editor/THIRD_PARTY_NOTICES.txt` (linked from Help). Licence comments (`/*!`, `@license`)
-are kept at the end of each chunk (`esbuild.legalComments: 'eof'`).
+are kept where they appear in each chunk (`rolldownOptions.output.comments.legal`).
