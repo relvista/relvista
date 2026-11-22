@@ -67,7 +67,7 @@ if (model) {
   editable (the relvista editor uses it): controlled `layout` + `onLayoutChange`, auto-layout,
   pin and collapse, per-view layouts, highlight, an imperative handle (fit, focus, export).
 - Export: `renderDiagramSvgString`, `exportPng`, `exportPdf` (tiled multi-page PDF; jsPDF loads
-  only when called; Greek, Cyrillic and CJK stay text through embedded font subsets), `printDiagram`, `downloadBlob`.
+  only when called; Greek, Cyrillic, Chinese and Japanese stay text through embedded font subsets), `printDiagram`, `downloadBlob`.
 - Links: `encodeShareHash` / `decodeShareHash` (compressed `#dbml=` share links),
   `createEditorLink`, deep-link targets (`#table=`, `#view=`).
 - Layout edits: `setNodePositions`, `setNodeSettings`, `effectivePositions`, `nodeEntry`.
