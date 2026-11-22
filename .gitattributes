@@ -1,0 +1,16 @@
+# LF in every checkout, whatever core.autocrlf says: Prettier, the snapshot and the byte-exact DBML
+# round-trip tests expect LF on Windows too. Git tells binary files apart by itself; the types
+# below are named so it never has to guess.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.tgz binary
