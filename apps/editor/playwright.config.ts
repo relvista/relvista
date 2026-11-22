@@ -36,9 +36,20 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /mobile\.spec\.ts/,
+      testIgnore: [/mobile\.spec\.ts/, /perf\.spec\.ts/],
       // Not devices['Desktop Chrome']: its Windows user agent makes Monaco bind Ctrl while a
       // macOS host sends Meta for ControlOrMeta.
+      use: { browserName: 'chromium', viewport: { width: 1360, height: 900 } },
+    },
+    {
+      // The timing budgets run last and alone: in parallel with the other specs (fullyParallel)
+      // they share the CI runner's few cores with Monaco and the canvas of other tests, and the
+      // measured latency is mostly that contention. `dependencies` makes them wait until both
+      // other projects finish; perf.spec.ts is serial, so they also run one at a time. To run
+      // only them: `pnpm exec playwright test --project=perf --no-deps`.
+      name: 'perf',
+      testMatch: /perf\.spec\.ts/,
+      dependencies: ['chromium', 'mobile'],
       use: { browserName: 'chromium', viewport: { width: 1360, height: 900 } },
     },
     {
