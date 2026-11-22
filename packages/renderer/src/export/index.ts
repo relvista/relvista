@@ -13,6 +13,7 @@ export {
   contentBoxes,
   defaultPaper,
   isWinAnsi,
+  pdfCanDrawText,
   PDF_DIAGRAM_PADDING,
   paddedBounds,
   planTiles,

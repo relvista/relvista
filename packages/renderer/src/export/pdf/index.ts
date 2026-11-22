@@ -3,11 +3,15 @@
  * and svg2pdf.js load with `import('./impl.js')` on the first export, so the package entry (and a
  * docs page that never prints) does not pay for them.
  *
+ * Text outside WinAnsi: Latin, Greek, Cyrillic and CJK (ideographs, kana) are drawn with an
+ * embedded font subset (Noto Sans, Droid Sans Fallback), loaded only for a document that needs it;
+ * see `unicode.ts`. A page with text those fonts lack (Arabic, Hebrew, Hangul, Indic scripts,
+ * emoji) is embedded as an image.
+ *
  * Report: `exportPdfWithReport` resolves to `{ blob, pageCount, rasterPages }`; `rasterPages`
- * counts pages embedded as images because their text uses characters the standard PDF fonts lack
- * (CJK, emoji, most non-Latin scripts). The export dialog shows "Some text uses characters the
- * PDF fonts lack; pages are embedded as images" when it is above zero. `exportPdf` is the same
- * call resolving to the Blob only.
+ * counts the pages embedded as images. The export dialog shows "Some text uses characters the PDF
+ * fonts lack; pages are embedded as images" when it is above zero. `exportPdf` is the same call
+ * resolving to the Blob only.
  */
 import type { DetailLevel, DiagramGeometry, DiagramModel } from '@relvista/core';
 import type { Decorations } from '../../svg/decorations.js';
@@ -35,6 +39,7 @@ export {
   type TilePlan,
   type TileRect,
 } from './plan.js';
+export { pdfCanDrawText } from './unicode.js';
 
 /** One diagram to print. */
 export interface PdfPageSource {
@@ -75,6 +80,14 @@ export interface PdfOptions {
   palette?: PaletteOverrides | null;
   /** Deflate page streams. Default true (false makes the bytes readable, for tests and debugging). */
   compress?: boolean;
+  /**
+   * Text outside WinAnsi (Greek, Cyrillic, CJK, …): draw it with an embedded font subset, so it
+   * stays selectable and searchable. The fonts load on first use (Noto Sans, 0.16 MB per weight;
+   * the CJK font, 2.1 MB). Pages with text the bundled fonts lack (Arabic, Hebrew, Hangul, Indic
+   * scripts, emoji) are rasters either way. `false` rasterizes every page with text outside
+   * WinAnsi, as relvista 1.0 did. Default true.
+   */
+  embedFonts?: boolean;
 }
 
 /** What `exportPdfWithReport` resolves to. */
@@ -82,7 +95,8 @@ export interface PdfExportResult {
   blob: Blob;
   pageCount: number;
   /**
-   * Pages embedded as a PNG because their text has characters outside WinAnsi. Each tile page is
+   * Pages embedded as a PNG because their text has characters no embedded font covers (or
+   * `embedFonts: false` and characters outside WinAnsi). Each tile page is
    * rasterized on its own at 3 device px per diagram px; a whole-diagram page (overview, one page
    * per view) is one raster at up to 3×, less for a diagram past the canvas limits (16384 px a
    * side, 16.7 MP).
@@ -91,7 +105,8 @@ export interface PdfExportResult {
 }
 
 /**
- * Writes the PDF and reports how it went. Lazy: the first call loads jsPDF and svg2pdf.js.
+ * Writes the PDF and reports how it went. Lazy: the first call loads jsPDF and svg2pdf.js, and
+ * a document with text outside WinAnsi loads the fonts it needs.
  * Browser only. Rejects with PdfPageLimitError (before loading anything) past 200 pages.
  */
 export async function exportPdfWithReport(

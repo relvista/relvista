@@ -2,6 +2,9 @@
  * The heavy half of the PDF export: loaded with `import('./impl.js')` by `exportPdf`, so jsPDF and
  * svg2pdf.js never enter the package entry's static graph (docs/design/phase3-v1.md §4.4).
  * Browser only (svg2pdf measures text with the DOM).
+ *
+ * Text outside WinAnsi is drawn with an embedded font subset when one of the bundled fonts covers
+ * it (`unicode.ts`); a page with text none covers is embedded as a raster instead.
  */
 import type { DiagramGeometry } from '@relvista/core';
 import { jsPDF } from 'jspdf';
@@ -20,8 +23,16 @@ import {
   planDocument,
   standardFontFor,
   type MarkPrimitive,
+  type PaperSize,
   type PlannedPage,
 } from './plan.js';
+import {
+  PDF_FONTS,
+  bytesToBinaryString,
+  loadPdfFont,
+  unicodeFontFor,
+  type PdfFontId,
+} from './unicode.js';
 
 /** The rectangle svg2pdf draws the SVG into, in document units (mm). */
 export interface SvgPlacement {
@@ -54,6 +65,8 @@ export interface PdfDeps {
   rasterize: (source: PdfPageSource, options: PngExportOptions) => Promise<Blob | Uint8Array>;
   /** Header text the standard fonts lack, as an image; null draws it with '?' replacements. */
   textImage: (text: string, sizePt: number, grey: number) => TextImage | null;
+  /** The TrueType file of a bundled font for text outside WinAnsi (`loadPdfFont`). */
+  loadFont: (font: PdfFontId) => Promise<Uint8Array>;
 }
 
 /** svg2pdf.js through its function export. */
@@ -92,6 +105,7 @@ export const DEFAULT_PDF_DEPS: PdfDeps = {
   drawSvg: drawSvgWithSvg2pdf,
   rasterize: (source, options) => exportPng(source.model, source.geometry, options),
   textImage: canvasTextImage,
+  loadFont: loadPdfFont,
 };
 
 const HEADER_GREY = 120;
@@ -149,9 +163,121 @@ function cull(svg: Element, geometry: DiagramGeometry, visible: PlannedPage['vis
   }
 }
 
-/** Text the page draws (`<text>` content; `<title>` tooltips are not drawn). */
-function drawnText(svg: Element): string[] {
-  return Array.from(svg.getElementsByTagName('text'), (t) => t.textContent ?? '');
+/** Whether a `<text>` is drawn bold (weights are normalized to normal / bold by then). */
+function isBold(el: Element): boolean {
+  for (let n: Element | null = el; n && n.tagName.toLowerCase() !== 'svg'; n = n.parentElement) {
+    const m = /font-weight:\s*(\w+)/.exec(n.getAttribute('style') ?? '');
+    const w = m?.[1] ?? n.getAttribute('font-weight');
+    if (w) return w === 'bold' || Number(w) >= 600;
+  }
+  return false;
+}
+
+/**
+ * Each `<text>` the page draws (`<title>` tooltips are not drawn) with characters outside
+ * WinAnsi, with the bundled font that covers it (null: none does).
+ */
+function unicodeTexts(svg: Element): Array<{ el: Element; font: PdfFontId | null }> {
+  const out: Array<{ el: Element; font: PdfFontId | null }> = [];
+  for (const el of Array.from(svg.getElementsByTagName('text'))) {
+    const text = el.textContent ?? '';
+    if (!isWinAnsi(text)) out.push({ el, font: unicodeFontFor(text, isBold(el)) });
+  }
+  return out;
+}
+
+function withoutFont(style: string): string {
+  return style
+    .split(';')
+    .filter((d) => d.trim() && !/^\s*font-(family|weight)\s*:/.test(d))
+    .join(';');
+}
+
+/**
+ * Switches every `<text>` that needs it to its embedded font, NFC-normalized as the font was
+ * chosen. False (the clone is then discarded) when some text has no embedded font.
+ */
+function useUnicodeFonts(svg: Element, embedded: ReadonlySet<PdfFontId>): boolean {
+  const texts = unicodeTexts(svg);
+  if (texts.some((t) => t.font === null || !embedded.has(t.font))) return false;
+  for (const { el, font } of texts) {
+    const { family, style } = PDF_FONTS[font!];
+    const decl = `font-family:${family};font-weight:${style}`;
+    const own = withoutFont(el.getAttribute('style') ?? '');
+    el.setAttribute('style', own ? `${own};${decl}` : decl);
+    for (const child of Array.from(el.getElementsByTagName('*'))) {
+      const s = child.getAttribute('style');
+      if (s !== null) child.setAttribute('style', withoutFont(s));
+      child.removeAttribute('font-family');
+      child.removeAttribute('font-weight');
+    }
+    el.removeAttribute('font-family');
+    el.removeAttribute('font-weight');
+    const walker = el.ownerDocument.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = n as Text;
+      t.data = t.data.normalize('NFC');
+    }
+  }
+  return true;
+}
+
+/** Fonts registered with jsPDF for this document, and a cleanup for the browser FontFaces. */
+interface EmbeddedFonts {
+  fonts: Set<PdfFontId>;
+  dispose: () => void;
+}
+
+/**
+ * Loads and registers the bundled fonts in `wanted` (each once, in parallel). A font that fails to
+ * load is left out, and its text falls back to raster. In a browser each font is also added to
+ * `document.fonts` under its PDF family name for the export's duration, so svg2pdf measures
+ * centred and right-aligned text in the font the PDF draws it with.
+ */
+async function embedFonts(
+  doc: jsPDF,
+  deps: PdfDeps,
+  wanted: ReadonlySet<PdfFontId>,
+): Promise<EmbeddedFonts> {
+  const fonts = new Set<PdfFontId>();
+  const faces: FontFace[] = [];
+  const loaded = await Promise.all(
+    [...wanted].map((id) =>
+      deps.loadFont(id).then(
+        (bytes) => ({ id, bytes }),
+        () => null,
+      ),
+    ),
+  );
+  for (const entry of loaded) {
+    if (!entry) continue;
+    const { id, bytes } = entry;
+    const { family, style, weight } = PDF_FONTS[id];
+    const file = `relvista-${id}.ttf`;
+    try {
+      doc.addFileToVFS(file, bytesToBinaryString(bytes));
+      doc.addFont(file, family, style, undefined, 'Identity-H');
+      fonts.add(id);
+    } catch {
+      continue;
+    }
+    if (typeof FontFace === 'function' && typeof document !== 'undefined' && document.fonts) {
+      try {
+        const face = new FontFace(family, bytes.slice().buffer, { weight: String(weight) });
+        await face.load();
+        document.fonts.add(face);
+        faces.push(face);
+      } catch {
+        // svg2pdf then measures with a fallback font: anchored text is a little off, no more.
+      }
+    }
+  }
+  return {
+    fonts,
+    dispose: () => {
+      for (const face of faces) document.fonts.delete(face);
+    },
+  };
 }
 
 function toBytes(data: Blob | Uint8Array): Promise<Uint8Array> {
@@ -194,10 +320,19 @@ function drawHeaderText(
   y: number,
   align: 'left' | 'right',
   maxMm: number,
+  embedded: ReadonlySet<PdfFontId>,
 ): void {
   if (!text) return;
   if (isWinAnsi(text)) {
     doc.text(fitText(doc, text, maxMm), x, y, { align, baseline: 'middle' });
+    return;
+  }
+  const font = unicodeFontFor(text, false);
+  if (font && embedded.has(font)) {
+    const { family, style } = PDF_FONTS[font];
+    doc.setFont(family, style);
+    doc.text(fitText(doc, text.normalize('NFC'), maxMm), x, y, { align, baseline: 'middle' });
+    doc.setFont('helvetica', 'normal');
     return;
   }
   const img = deps.textImage(text, HEADER_FONT_PT, HEADER_GREY);
@@ -211,7 +346,12 @@ function drawHeaderText(
   doc.text(fitText(doc, winAnsiOrQuestion(text), maxMm), x, y, { align, baseline: 'middle' });
 }
 
-function drawHeader(doc: jsPDF, deps: PdfDeps, page: PlannedPage): void {
+function drawHeader(
+  doc: jsPDF,
+  deps: PdfDeps,
+  page: PlannedPage,
+  embedded: ReadonlySet<PdfFontId>,
+): void {
   const m = PAGE_MARGIN_MM;
   const y = m + 1.6;
   doc.setFont('helvetica', 'normal');
@@ -219,8 +359,10 @@ function drawHeader(doc: jsPDF, deps: PdfDeps, page: PlannedPage): void {
   doc.setTextColor(HEADER_GREY);
   const width = page.pageMm.w - 2 * m;
   const rightW = Math.min(width * 0.6, doc.getTextWidth(winAnsiOrQuestion(page.header.right)));
-  drawHeaderText(doc, deps, page.header.right, page.pageMm.w - m, y, 'right', width * 0.6);
-  drawHeaderText(doc, deps, page.header.left, m, y, 'left', Math.max(10, width - rightW - 4));
+  const right = page.header.right;
+  drawHeaderText(doc, deps, right, page.pageMm.w - m, y, 'right', width * 0.6, embedded);
+  const leftW = Math.max(10, width - rightW - 4);
+  drawHeaderText(doc, deps, page.header.left, m, y, 'left', leftW, embedded);
   doc.setDrawColor(210);
   doc.setLineWidth(0.15);
   doc.line(m, m + 3.4, page.pageMm.w - m, m + 3.4);
@@ -324,52 +466,83 @@ export async function renderPdf(
   const prepared = sources.map((s) => prepare(s, options));
   let rasterPages = 0;
 
-  for (let i = 0; i < plan.length; i++) {
-    const page = plan[i]!;
-    if (i > 0) doc.addPage(paper, page.orientation);
-    const src = prepared[page.source]!;
-    const svg = src.svg.cloneNode(true) as Element;
-    if (page.kind === 'tile') cull(svg, src.source.geometry, page.visiblePx);
-    const raster = !drawnText(svg).every(isWinAnsi);
-
-    doc.saveGraphicsState();
-    doc.rect(page.clip.x, page.clip.y, page.clip.w, page.clip.h, null);
-    doc.clip();
-    doc.discardPath();
-    if (raster && page.kind === 'tile') {
-      // Only the tile's region, at full raster scale: the image covers exactly the clip.
-      const region: PdfPageSource = {
-        ...src.source,
-        geometry: { ...src.source.geometry, bounds: page.visiblePx },
-      };
-      const bytes = await toBytes(await d.rasterize(region, { ...src.pngOptions, padding: 0 }));
-      doc.addImage(bytes, 'PNG', page.clip.x, page.clip.y, page.clip.w, page.clip.h);
-    } else if (raster) {
-      src.png ??= d.rasterize(src.source, src.pngOptions).then(toBytes);
-      const bytes = await src.png;
-      doc.addImage(
-        bytes,
-        'PNG',
-        page.draw.x,
-        page.draw.y,
-        page.draw.w,
-        page.draw.h,
-        `rv-diagram-${page.source}`,
-      );
-    } else {
-      await d.drawSvg(svg, doc, {
-        x: page.draw.x,
-        y: page.draw.y,
-        width: page.draw.w,
-        height: page.draw.h,
-      });
+  // Text outside WinAnsi: load just the fonts that cover it (none for a WinAnsi-only document).
+  const wanted = new Set<PdfFontId>();
+  if (options.embedFonts !== false) {
+    for (const p of prepared) for (const t of unicodeTexts(p.svg)) if (t.font) wanted.add(t.font);
+    for (const page of plan) {
+      for (const text of [page.header.left, page.header.right]) {
+        const font = isWinAnsi(text) ? null : unicodeFontFor(text, false);
+        if (font) wanted.add(font);
+      }
     }
-    doc.restoreGraphicsState();
-
-    drawHeader(doc, d, page);
-    drawMarks(doc, page.marks, page.kind === 'overview');
-    if (raster) rasterPages++;
+  }
+  const embedded: EmbeddedFonts =
+    wanted.size > 0
+      ? await embedFonts(doc, d, wanted)
+      : { fonts: new Set(), dispose: () => undefined };
+  try {
+    for (let i = 0; i < plan.length; i++) {
+      if (await drawPage(doc, d, plan[i]!, i, prepared, paper, embedded.fonts)) rasterPages++;
+    }
+  } finally {
+    embedded.dispose();
   }
 
   return { blob: doc.output('blob'), pageCount: plan.length, rasterPages };
+}
+
+/** Draws one planned page; true when it had to be a raster. */
+async function drawPage(
+  doc: jsPDF,
+  d: PdfDeps,
+  page: PlannedPage,
+  i: number,
+  prepared: readonly PreparedSource[],
+  paper: PaperSize,
+  embedded: ReadonlySet<PdfFontId>,
+): Promise<boolean> {
+  if (i > 0) doc.addPage(paper, page.orientation);
+  const src = prepared[page.source]!;
+  const svg = src.svg.cloneNode(true) as Element;
+  if (page.kind === 'tile') cull(svg, src.source.geometry, page.visiblePx);
+  const raster = !useUnicodeFonts(svg, embedded);
+
+  doc.saveGraphicsState();
+  doc.rect(page.clip.x, page.clip.y, page.clip.w, page.clip.h, null);
+  doc.clip();
+  doc.discardPath();
+  if (raster && page.kind === 'tile') {
+    // Only the tile's region, at full raster scale: the image covers exactly the clip.
+    const region: PdfPageSource = {
+      ...src.source,
+      geometry: { ...src.source.geometry, bounds: page.visiblePx },
+    };
+    const bytes = await toBytes(await d.rasterize(region, { ...src.pngOptions, padding: 0 }));
+    doc.addImage(bytes, 'PNG', page.clip.x, page.clip.y, page.clip.w, page.clip.h);
+  } else if (raster) {
+    src.png ??= d.rasterize(src.source, src.pngOptions).then(toBytes);
+    const bytes = await src.png;
+    doc.addImage(
+      bytes,
+      'PNG',
+      page.draw.x,
+      page.draw.y,
+      page.draw.w,
+      page.draw.h,
+      `rv-diagram-${page.source}`,
+    );
+  } else {
+    await d.drawSvg(svg, doc, {
+      x: page.draw.x,
+      y: page.draw.y,
+      width: page.draw.w,
+      height: page.draw.h,
+    });
+  }
+  doc.restoreGraphicsState();
+
+  drawHeader(doc, d, page, embedded);
+  drawMarks(doc, page.marks, page.kind === 'overview');
+  return raster;
 }
