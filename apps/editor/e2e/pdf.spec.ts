@@ -1,8 +1,9 @@
 // Export ▾ PDF… in the editor (docs/design/phase3-v1.md §6.12, §7): tiled pages whose count is
-// planTiles', one page per view, the 3 s budget once the PDF libraries are loaded.
+// planTiles', one page per view, the 3 s budget once the PDF libraries are loaded, and text
+// outside WinAnsi (embedded fonts; Arabic stays an image).
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openEditor, openExampleFromMenu } from './helpers.js';
+import { diagramReady, openEditor, openExampleFromMenu, pasteAtEnd } from './helpers.js';
 
 async function openExample(page: Page, title: RegExp): Promise<void> {
   await openEditor(page);
@@ -67,6 +68,64 @@ test('tiled A4 of 14-large: page count from planTiles, ≤ 3 s once the librarie
   expect(run.pages).toBe(expected);
   // Budget 3 s (design §7), asserted loosely: CI machines are slower and shared.
   expect(run.ms).toBeLessThan(process.env.CI ? 9_000 : 6_000);
+});
+
+test('Cyrillic and CJK stay text: embedded fonts, no image, extractable', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openEditor(page);
+  await pasteAtEnd(
+    page,
+    'Table пользователи {\n  id int [pk]\n  имя varchar\n}\n\n' +
+      'Table 用户 {\n  id int [pk]\n  名字 varchar\n  user_id int [ref: > пользователи.id]\n}\n',
+  );
+  await expect(page.locator('.react-flow__node-rvTable')).toHaveCount(2);
+  await diagramReady(page);
+  const dialog = await openPdfDialog(page);
+  await dialog.getByRole('radio', { name: /One page per view/ }).check();
+  // No "embedded as images" note: the bundled fonts cover these scripts.
+  await expect(dialog).not.toContainText('embedded as images');
+  const started = Date.now();
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 60_000 }),
+    dialog.getByRole('button', { name: 'Export PDF' }).click(),
+  ]);
+  console.log(`[perf] PDF with Cyrillic + CJK fonts, first export: ${Date.now() - started} ms`);
+  await expect(page.locator('.ed-toast', { hasText: 'PDF downloaded (1 page)' })).toBeVisible();
+  const path = (await download.path())!;
+  await download.saveAs(test.info().outputPath('unicode.pdf'));
+  const bytes = new Uint8Array(readFileSync(path));
+  const raw = Buffer.from(bytes).toString('latin1');
+  expect(raw).not.toContain('/Subtype /Image');
+  // The three subsets, each embedded under its own name: bold Noto Sans (the Cyrillic table
+  // name), regular Noto Sans (its column) and the CJK font (the other table).
+  expect(raw.match(/\/FontFile2 /g)).toHaveLength(3);
+  const names = [...raw.matchAll(/\/FontName \/(\w+)/g)].map((m) => m[1]).sort();
+  expect(names).toEqual(['rvpdfcjk', 'rvpdfsans', 'rvpdfsansbold']);
+  // What a PDF reader extracts (pdf.js reads the fonts' ToUnicode maps).
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({ data: bytes, verbosity: 0 });
+  const pdf = await task.promise;
+  const content = await (await pdf.getPage(1)).getTextContent();
+  const text = content.items.map((it) => ('str' in it ? it.str : '')).join(' ');
+  await task.destroy();
+  for (const s of ['пользователи', 'имя', '用户', '名字', 'user_id']) expect(text).toContain(s);
+  expect(bytes.length).toBeLessThan(150_000);
+});
+
+test('Arabic still exports as an image, and the dialog says so first', async ({ page }) => {
+  test.setTimeout(90_000);
+  await openEditor(page);
+  await pasteAtEnd(page, 'Table "مستخدم" {\n  id int [pk]\n}\n');
+  await diagramReady(page);
+  const dialog = await openPdfDialog(page);
+  await expect(dialog).toContainText('pages are embedded as images');
+  await Promise.all([
+    page.waitForEvent('download', { timeout: 60_000 }),
+    dialog.getByRole('button', { name: 'Export PDF' }).click(),
+  ]);
+  await expect(
+    page.locator('.ed-toast', { hasText: 'Some text uses characters the PDF fonts lack' }),
+  ).toBeVisible();
 });
 
 test('one page per view: as many pages as views chosen (empty ones left out)', async ({ page }) => {

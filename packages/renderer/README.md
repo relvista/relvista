@@ -67,7 +67,7 @@ if (model) {
   editable (the relvista editor uses it): controlled `layout` + `onLayoutChange`, auto-layout,
   pin and collapse, per-view layouts, highlight, an imperative handle (fit, focus, export).
 - Export: `renderDiagramSvgString`, `exportPng`, `exportPdf` (tiled multi-page PDF; jsPDF loads
-  only when called), `printDiagram`, `downloadBlob`.
+  only when called; Greek, Cyrillic, Chinese and Japanese stay text through embedded font subsets), `printDiagram`, `downloadBlob`.
 - Links: `encodeShareHash` / `decodeShareHash` (compressed `#dbml=` share links),
   `createEditorLink`, deep-link targets (`#table=`, `#view=`).
 - Layout edits: `setNodePositions`, `setNodeSettings`, `effectivePositions`, `nodeEntry`.
@@ -86,4 +86,6 @@ the stylesheet. The variables are listed in the
 MIT. The interactive viewer is built on [React Flow](https://reactflow.dev) (MIT, by xyflow); its
 attribution badge is hidden in the canvas and credited here instead. PDF export uses
 [jsPDF](https://github.com/parallax/jsPDF) and [svg2pdf.js](https://github.com/yWorks/svg2pdf.js)
-(both MIT).
+(both MIT). For text outside WinAnsi it embeds subsets of Noto Sans (SIL Open Font License 1.1)
+and Droid Sans Fallback (Apache License 2.0), loaded only when a PDF needs them; their licences
+are in `dist/export/pdf/fonts/LICENSES.md`.

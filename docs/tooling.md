@@ -16,3 +16,8 @@ CI order: install (`--frozen-lockfile`) → `format:check` → schema sync check
 `notices:check` → `typecheck` → `test` → `validate:examples` → `test:e2e` (docs, editor, docs-compat). `deploy-docs.yml`
 publishes `apps/docs` to GitHub Pages on every push to `main`; `release.yml` opens the version pull request or publishes
 to npm ([releasing.md](releasing.md)). Contributor-facing details are in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+`pdfjs-dist` is a dev dependency of the renderer and the editor: tests read the exported PDFs
+with it, as a PDF reader would. The root `package.json` drops its optional `@napi-rs/canvas`
+(`pnpm.overrides`), which pdf.js needs only to render pages; jsdom would otherwise pick it up as
+its canvas in every unit test.

@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  pdfjs-dist>@napi-rs/canvas: '-'
+
 importers:
 
   .:
@@ -221,6 +224,9 @@ importers:
       jsdom:
         specifier: ^31
         version: 31.0.1(@noble/hashes@1.8.0)
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -344,6 +350,9 @@ importers:
       jsdom:
         specifier: ^31
         version: 31.0.1(@noble/hashes@1.8.0)
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       react:
         specifier: ^19
         version: 19.3.1
@@ -5660,6 +5669,10 @@ packages:
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  pdfjs-dist@6.5.438:
+    resolution: {integrity: sha512-vg8Pw1x+AFKy4AMDvhuWl5cOYV8d698UoEANoFFhc79hqXDnZQqnOXoxw3HG907WHOg1JYOvLhP756boddFxpA==}
+    engines: {node: '>=22.13.0 || >=24'}
 
   performance-now@2.1.0:
     resolution: {integrity: sha512-7EAHlyLHI56VEIdK57uwHdHKIaAGbnXPiw0yWbarQZOKaKpvUIgW0jWRVLiatnM+XXlSwsanIBH/hzGMJulMow==}
@@ -15265,6 +15278,8 @@ snapshots:
   path-type@4.0.0: {}
 
   pathe@2.0.3: {}
+
+  pdfjs-dist@6.5.438: {}
 
   performance-now@2.1.0:
     optional: true

@@ -9,7 +9,7 @@ import {
   diffDecorations,
   downloadBlob,
   exportPdfWithReport,
-  isWinAnsi,
+  pdfCanDrawText,
   type PdfOptions,
   type PdfPageSource,
 } from '@relvista/renderer';
@@ -84,7 +84,7 @@ export function PdfExportDialog(props: { onClose(): void }): ReactElement | null
   const views = pdfViews(model);
   // The common case of the writer's raster fallback (it checks every drawn string).
   const raster = model.tables.some(
-    (t) => !isWinAnsi(t.name) || t.columns.some((c) => !isWinAnsi(c.name)),
+    (t) => !pdfCanDrawText(t.name) || t.columns.some((c) => !pdfCanDrawText(c.name)),
   );
 
   return createPortal(

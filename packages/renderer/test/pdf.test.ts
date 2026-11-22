@@ -575,6 +575,7 @@ describe('exportPdf (jsPDF + svg2pdf.js, uncompressed)', { timeout: 30_000 }, ()
     expect(pdf).toContain('(1/3 \xb7 relvista)');
   });
 
+  // CJK has an embedded font (pdf-unicode.test.ts); `embedFonts: false` keeps 1.0's raster path.
   it('text outside WinAnsi: that page is embedded as a 3× PNG through exportPng', async () => {
     exportPngMock.mockReset();
     exportPngMock.mockResolvedValue(new Blob([PNG_1X1], { type: 'image/png' }));
@@ -587,6 +588,7 @@ describe('exportPdf (jsPDF + svg2pdf.js, uncompressed)', { timeout: 30_000 }, ()
       mode: 'pages',
       paper: 'a4',
       compress: false,
+      embedFonts: false,
     });
     expect(pageCount).toBe(2);
     expect(rasterPages).toBe(1);
@@ -607,7 +609,13 @@ describe('exportPdf (jsPDF + svg2pdf.js, uncompressed)', { timeout: 30_000 }, ()
     exportPngMock.mockResolvedValue(new Blob([PNG_1X1], { type: 'image/png' }));
     const cols = Array.from({ length: 60 }, (_, i) => `  列${i} int`).join('\n');
     const src = source('cjk', model(`Table 用户 {\n${cols}\n}`));
-    const options = { mode: 'tiled' as const, paper: 'a4' as const, scale: 2, compress: false };
+    const options = {
+      mode: 'tiled' as const,
+      paper: 'a4' as const,
+      scale: 2,
+      compress: false,
+      embedFonts: false,
+    };
     const plan = planDocument([{ title: 'cjk', bounds: src.geometry.bounds }], options);
     const tiles = plan.filter((p) => p.kind === 'tile');
     expect(tiles.length).toBeGreaterThan(1);
@@ -631,7 +639,13 @@ describe('exportPdf (jsPDF + svg2pdf.js, uncompressed)', { timeout: 30_000 }, ()
       hMm: 3,
     }));
     const withImage = await readBlob(
-      (await renderPdf([src], { mode: 'pages', paper: 'a4', compress: false }, { textImage })).blob,
+      (
+        await renderPdf(
+          [src],
+          { mode: 'pages', paper: 'a4', compress: false, embedFonts: false },
+          { textImage },
+        )
+      ).blob,
     );
     expect(textImage).toHaveBeenCalledWith('請求', 7, expect.any(Number));
     expect(withImage).toContain('/Subtype /Image');
@@ -639,7 +653,7 @@ describe('exportPdf (jsPDF + svg2pdf.js, uncompressed)', { timeout: 30_000 }, ()
       (
         await renderPdf(
           [src],
-          { mode: 'pages', paper: 'a4', compress: false },
+          { mode: 'pages', paper: 'a4', compress: false, embedFonts: false },
           { textImage: () => null },
         )
       ).blob,
