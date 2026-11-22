@@ -9,8 +9,9 @@ Logo, colours and fonts: [brand/README.md](brand/README.md).
 
 ## Setup
 
-Requirements: Node 24 (see `.nvmrc`; Node >= 20 is supported) and pnpm 9.15 (pinned through
-`packageManager`, so `corepack enable` picks the right version).
+Requirements: Node 24 (see `.nvmrc`; 22.22.2+ or 24.15+ also work, as vitest 5 and jsdom 31 need
+them) and pnpm 9.15 (pinned through `packageManager`, so `corepack enable` picks the right
+version). The published packages themselves still support Node >= 20.
 
 ```sh
 nvm use

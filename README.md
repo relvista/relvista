@@ -70,7 +70,7 @@ docs/releasing.md      how versions and npm releases work (Changesets, release.y
 ## Development
 
 ```sh
-nvm use          # Node 24 (>= 20 supported)
+nvm use          # Node 24 (22.22.2+ / 24.15+ for the dev tooling)
 pnpm install
 pnpm test
 pnpm typecheck
