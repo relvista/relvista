@@ -192,7 +192,9 @@ export default function pluginRelvista(
     },
 
     getPathsToWatch() {
-      return [join(siteDir, '**', '*.dbml'), join(siteDir, '**', '*.dbml.layout.json')];
+      // Globs take '/' on every OS: in a glob '\' escapes the next character.
+      const site = siteDir.split(sep).join('/');
+      return [`${site}/**/*.dbml`, `${site}/**/*.dbml.layout.json`];
     },
 
     configureWebpack(_config, isServer) {

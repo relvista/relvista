@@ -49,15 +49,20 @@ export async function pasteAtEnd(page: Page, text: string): Promise<void> {
 /**
  * Waits for the final layout, then for the picture to stand still: when ELK's result replaces the
  * first (sync) layout the canvas re-frames it with a short animation, and node boxes read during
- * that animation are stale.
+ * that animation are stale. The layout stage is read again on every round, so a document that
+ * arrives meanwhile is waited for too. Right after an open, `data-rv-layout` may still describe the
+ * previous document: wait for the new one to be drawn first (see `openExampleFromMenu`).
  */
 export async function diagramReady(page: Page): Promise<void> {
   await expect(page.locator('.rv-canvas[data-rv-layout="done"]')).toBeAttached();
   const snapshot = () =>
     page.evaluate(() => {
+      const canvases = [...document.querySelectorAll<HTMLElement>('.rv-canvas')];
+      const done = canvases.every((c) => c.dataset.rvLayout === 'done');
       const vp = document.querySelector<HTMLElement>('.rv-canvas .react-flow__viewport');
       const nodes = [...document.querySelectorAll<HTMLElement>('.rv-canvas .react-flow__node')];
-      return `${vp?.style.transform ?? ''}|${nodes.map((n) => n.style.transform).join(';')}`;
+      const picture = `${vp?.style.transform ?? ''}|${nodes.map((n) => n.style.transform).join(';')}`;
+      return { done, picture };
     });
   let last = await snapshot();
   await expect
@@ -65,13 +70,37 @@ export async function diagramReady(page: Page): Promise<void> {
       async () => {
         await page.waitForTimeout(150);
         const next = await snapshot();
-        const still = next === last;
+        const still = next.done && last.done && next.picture === last.picture;
         last = next;
         return still;
       },
       { intervals: [0] },
     )
     .toBe(true);
+}
+
+/** The ids of the nodes drawn, in order. */
+function drawnNodes(page: Page): Promise<string> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.rv-canvas .react-flow__node')]
+      .map((n) => n.dataset.id)
+      .join(','),
+  );
+}
+
+/**
+ * Opens an example through New ▸ From example ▸ `name`, then waits for its final layout. Examples
+ * load asynchronously and, on a busy machine, ELK takes seconds for the large ones: the wait
+ * starts once the example's own tables are drawn, so the finished layout of the document shown
+ * before is never taken for the example's. For an example other than the one shown.
+ */
+export async function openExampleFromMenu(page: Page, name: RegExp): Promise<void> {
+  const before = await drawnNodes(page);
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'From example' }).click();
+  await page.getByRole('menuitem', { name }).click();
+  await expect.poll(() => drawnNodes(page)).not.toBe(before);
+  await diagramReady(page);
 }
 
 /** Runs an Export menu item (and submenu item) and returns the downloaded bytes. */

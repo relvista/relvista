@@ -1,13 +1,10 @@
 // Search, path, detail level and focus in the diagram pane (docs/design/phase3-v1.md §6.8, §6.9).
 import { expect, test, type Page } from '@playwright/test';
-import { diagramReady, exportItem, openEditor } from './helpers.js';
+import { exportItem, openEditor, openExampleFromMenu } from './helpers.js';
 
 async function openLarge(page: Page): Promise<void> {
   await openEditor(page);
-  await page.getByRole('button', { name: 'New', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'From example' }).click();
-  await page.getByRole('menuitem', { name: /^Large SaaS schema/ }).click();
-  await diagramReady(page);
+  await openExampleFromMenu(page, /^Large SaaS schema/);
 }
 
 const node = (page: Page, id: string) =>

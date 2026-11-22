@@ -2,14 +2,11 @@
 // planTiles', one page per view, the 3 s budget once the PDF libraries are loaded.
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { diagramReady, openEditor } from './helpers.js';
+import { openEditor, openExampleFromMenu } from './helpers.js';
 
 async function openExample(page: Page, title: RegExp): Promise<void> {
   await openEditor(page);
-  await page.getByRole('button', { name: 'New', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'From example' }).click();
-  await page.getByRole('menuitem', { name: title }).click();
-  await diagramReady(page);
+  await openExampleFromMenu(page, title);
 }
 
 async function openPdfDialog(page: Page) {

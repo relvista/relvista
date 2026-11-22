@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
 import { text } from 'node:stream/consumers';
+import { fileURLToPath } from 'node:url';
 import type { ReactNode } from 'react';
 import { renderToPipeableStream } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +22,7 @@ import { mergeViewDefaults } from '@relvista/core';
 
 const example = (name: string) =>
   readFileSync(new URL(`../../../examples/${name}`, import.meta.url), 'utf8');
-const siteDir = new URL('./fixtures/site', import.meta.url).pathname;
+const siteDir = fileURLToPath(new URL('./fixtures/site', import.meta.url));
 
 /** Renders like Docusaurus' renderToHtml: the whole HTML once every Suspense boundary resolved. */
 function renderToHtml(app: ReactNode): Promise<string> {
