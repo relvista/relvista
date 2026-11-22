@@ -6,6 +6,7 @@ import {
   selectView,
   subsetModel,
   tableTitle,
+  viewDetailLevel,
   type Box,
   type DetailLevel,
   type DiagramGeometry,
@@ -155,7 +156,7 @@ export interface DiagramCanvasProps {
   draggable?: boolean;
   /** Default 'light'. */
   colorMode?: ColorMode;
-  /** Default layout.settings.detailLevel ?? 'all'. */
+  /** Default: the view's saved level (`viewDetailLevel`), else layout.settings.detailLevel, else 'all'. */
   detailLevel?: DetailLevel;
   /** Default layout.settings.theme.edgeStyle ?? 'orthogonal'. */
   edgeStyle?: EdgeStyle;
@@ -770,7 +771,7 @@ function CanvasInner({
     !editable && localLayout && localLayout.for === layout && localLayout.key === docKey
       ? localLayout.value
       : layout;
-  const detail: DetailLevel = detailLevel ?? layout?.settings?.detailLevel ?? 'all';
+  const detail: DetailLevel = detailLevel ?? viewDetailLevel(layout, viewName) ?? 'all';
   const edges_: EdgeStyle = edgeStyle ?? layout?.settings?.theme?.edgeStyle ?? 'orthogonal';
   const saved = useMemo(
     () => (shownLayout ? mergeViewDefaults(shownLayout, viewName) : null),

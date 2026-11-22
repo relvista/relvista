@@ -10,6 +10,9 @@ export {
   renameNode,
   pruneLayout,
   mergeViewDefaults,
+  viewDetailLevel,
+  withViewDetailLevel,
+  renameViewSettings,
   type PruneResult,
 } from './layout.js';
 /** The layout-1 JSON Schema (`schemas/layout.schema.json`) as an object, for validators. */

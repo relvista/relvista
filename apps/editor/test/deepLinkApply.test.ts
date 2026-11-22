@@ -247,6 +247,29 @@ describe('detail level in the layout', () => {
     expect(shownDetail(keys, 'names')).toBe('names');
     expect(shownDetail(null, null)).toBe('all');
   });
+  it('a named view stores its own level; the default stays the diagram-wide setting', () => {
+    const keys = withDetailLevel(emptyLayout(), 'keys')!;
+    const names = withDetailLevel(keys, 'names', 'billing')!;
+    expect(names.settings).toEqual({
+      detailLevel: 'keys',
+      'x-relvista-view-settings': { billing: { detailLevel: 'names' } },
+    });
+    expect(shownDetail(names, null, 'billing')).toBe('names');
+    expect(shownDetail(names, null, 'other')).toBe('keys');
+    expect(shownDetail(names, null)).toBe('keys');
+    expect(shownDetail(names, 'all', 'billing')).toBe('all');
+    // Changing the default leaves the view's own level alone.
+    const allDefault = withDetailLevel(names, 'all')!;
+    expect(shownDetail(allDefault, null, 'billing')).toBe('names');
+    expect(shownDetail(allDefault, null, 'other')).toBe('all');
+    // Picking the diagram-wide level in a view drops the view's own (it follows the default again).
+    expect(withDetailLevel(names, 'keys', 'billing')!.settings).toEqual({ detailLevel: 'keys' });
+    expect(withDetailLevel(keys, 'keys', 'billing')).toBe(keys);
+    expect(withDetailLevel(null, 'all', 'billing')).toBeNull();
+    expect(withDetailLevel(null, 'keys', 'billing')!.settings).toEqual({
+      'x-relvista-view-settings': { billing: { detailLevel: 'keys' } },
+    });
+  });
 });
 
 describe('search hits → picks', () => {

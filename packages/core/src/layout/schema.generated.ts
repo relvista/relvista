@@ -258,9 +258,37 @@ export const layoutSchema = {
         }
       },
       "patternProperties": {
-        "^x-": {}
+        "^x-": {},
+        "^x-relvista-view-settings$": {
+          "$ref": "#/$defs/viewSettings"
+        }
       },
       "additionalProperties": false
+    },
+    "viewSettings": {
+      "description": "Display settings of named views, keyed by view name (\"*\" is not allowed: the default view uses the settings themselves). An extension key, so relvista 1.0 keeps it unread. A view without an entry uses the diagram-wide settings.",
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1,
+        "not": {
+          "const": "*"
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "detailLevel": {
+            "description": "Which columns tables show in this view. Overrides settings.detailLevel.",
+            "type": "string",
+            "enum": [
+              "all",
+              "keys",
+              "names"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
     }
   }
 } as const;

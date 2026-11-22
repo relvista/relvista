@@ -12,6 +12,7 @@ import {
   mergeViewDefaults,
   parseLayout,
   selectView,
+  viewDetailLevel,
   type CompileInput,
   type DetailLevel,
   type DiagramGeometry,
@@ -181,7 +182,7 @@ export async function buildDiff(backend: DiffBackend, request: DiffRequest): Pro
       view,
       saved: layout ? mergeViewDefaults(layout, view) : null,
       detailLevel:
-        request.detailLevel ?? layout?.settings?.detailLevel ?? request.defaultDetailLevel,
+        request.detailLevel ?? viewDetailLevel(layout, view) ?? request.defaultDetailLevel,
       edgeStyle: layout?.settings?.theme?.edgeStyle ?? 'orthogonal',
     };
     const options = {

@@ -81,10 +81,28 @@ export interface ThemeHints {
   edgeStyle?: 'orthogonal' | 'curved' | 'straight';
 }
 
+/**
+ * Extension key in `settings` that holds per-view display settings (`ViewSettings` by view name).
+ * relvista 1.0 keeps `x-` keys unread, so files that use it still load there.
+ */
+export const VIEW_SETTINGS_KEY = 'x-relvista-view-settings';
+
+/** Display settings of one named view; what it leaves out comes from the layout's `settings`. */
+export interface ViewSettings {
+  /** Detail level of this view. Overrides `settings.detailLevel`. */
+  detailLevel?: DetailLevel;
+}
+
 /** Display settings shared by every view of a layout file. */
 export interface LayoutSettings {
+  /** Detail level of the default view, and of named views without their own. */
   detailLevel?: DetailLevel;
   theme?: ThemeHints;
+  /**
+   * Settings of named views by view name ("*" is not allowed: the default view uses these
+   * settings). Read with `viewDetailLevel`, write with `withViewDetailLevel`.
+   */
+  [VIEW_SETTINGS_KEY]?: Record<string, ViewSettings>;
   /** Extension keys ("x-…") for third-party tools. */
   [extension: `x-${string}`]: unknown;
 }
