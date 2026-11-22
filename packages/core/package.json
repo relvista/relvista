@@ -63,7 +63,7 @@
     "elkjs": "0.12.1"
   },
   "devDependencies": {
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.3",
     "vitest": "^3.2.4"
   }
 }

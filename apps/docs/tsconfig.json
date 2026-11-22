@@ -1,7 +1,10 @@
 {
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
-    "baseUrl": ".",
+    // @docusaurus/tsconfig sets baseUrl, deprecated since TypeScript 6 (removed in 7): unset it
+    // and give the @site alias a path relative to this file instead.
+    "baseUrl": null,
+    "paths": { "@site/*": ["./*"] },
     "strict": true,
     "types": [
       "node",

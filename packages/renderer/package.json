@@ -81,7 +81,7 @@
     "jsdom": "^27",
     "react": "^19",
     "react-dom": "^19",
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.3",
     "vitest": "^3.2.4"
   }
 }
