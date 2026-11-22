@@ -480,7 +480,8 @@ describe('dagre row alignment', () => {
     }
   });
 
-  it('never overlaps tables, notes or groups, and is deterministic', () => {
+  // Seeded schemas laid out twice: ~2 s locally, ~8 s on a GitHub-hosted Windows runner.
+  it('never overlaps tables, notes or groups, and is deterministic', { timeout: 30_000 }, () => {
     for (let seed = 1; seed <= 80; seed++) {
       const { src, saved } = awkwardSchema(seed);
       const m = model(src);
@@ -502,7 +503,7 @@ describe('dagre row alignment', () => {
     }
   });
 
-  it('straightens refs of random schemas and never runs away', () => {
+  it('straightens refs of random schemas and never runs away', { timeout: 30_000 }, () => {
     let straight = 0;
     let straightBefore = 0;
     let sum = 0;

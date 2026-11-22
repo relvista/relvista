@@ -62,8 +62,9 @@ describe('fenceImport', () => {
     const win = 'C:\\Users\\me\\site\\node_modules\\@relvista\\docusaurus-plugin\\lib\\client';
     for (const server of [false, true]) {
       const found = specifiers(fenceImport(page('language-dbml'), { server }, win)!);
-      expect(found).toHaveLength(2);
-      for (const s of found) expect(s.startsWith(`${win}\\`)).toBe(true);
+      // The loader joins with the platform's separator (a real site only passes its own OS's
+      // paths); what matters is that the backslashes survive as a string literal.
+      expect([...found].sort()).toEqual([join(win, 'DbmlFence.js'), join(win, 'fence.js')].sort());
     }
   });
 
