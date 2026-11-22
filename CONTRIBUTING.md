@@ -19,6 +19,11 @@ corepack enable
 pnpm install
 ```
 
+Linux, macOS and Windows all work. On Windows, `corepack enable` writes next to `node.exe` and
+needs an elevated shell; without one, put the shims in a folder on your `PATH` instead:
+`corepack enable pnpm --install-directory <folder>`. `.gitattributes` checks every text file out
+with LF whatever `core.autocrlf` says, as Prettier and the byte-exact tests expect.
+
 ## Scripts
 
 Run from the repository root:
@@ -39,8 +44,8 @@ Run from the repository root:
 | `pnpm release:first`     | The one-time manual first publish (owner only)        |
 
 CI runs `format:check`, `lint`, `build`, `packages:check`, `notices:check`, `typecheck`, `test`,
-`validate:examples` and the e2e suites on every push and pull request to `main`. Run them locally
-before you open a pull request.
+`validate:examples` and the e2e suites on every push and pull request to `main`, on Linux, and all
+of them but `lint` and `typecheck` on Windows too. Run them locally before you open a pull request.
 
 To work on one package: `pnpm --filter @relvista/core test`.
 
