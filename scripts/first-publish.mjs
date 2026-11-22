@@ -22,6 +22,9 @@ import { PUBLISHED_PACKAGES } from './copy-license.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dryRun = process.argv.includes('--dry-run');
+// --otp=123456 passes an authenticator code to npm (for shells without a TTY, where npm cannot
+// wait for browser 2FA). npm accepts the same code for each package while it is still valid.
+const otp = process.argv.find((a) => a.startsWith('--otp='))?.slice('--otp='.length);
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
@@ -61,17 +64,20 @@ if (!dryRun) {
   console.warn(`(dry run: branch ${branch}${dirty ? ', uncommitted changes' : ''})`);
 }
 
-// 3. Logged in to npm, and nothing of this version published yet.
+// 3. Logged in to npm, and this version not fully published yet.
 if (!dryRun) {
   const who = run('npm', ['whoami']);
   if (who.status !== 0) fail('not logged in to npm: run `npm login` first');
   console.log(`npm user: ${who.stdout.trim()}`);
 }
-for (const { pkg } of manifests) {
+// Some already published means an interrupted run: the loop below skips those. All of them
+// published means the first release is done.
+const published = manifests.filter(({ pkg }) => {
   const view = run('npm', ['view', `${pkg.name}@${pkg.version}`, 'version']);
-  if (view.status === 0 && view.stdout.trim() === pkg.version)
-    fail(`${pkg.name}@${pkg.version} is already on npm; later releases go through release.yml`);
-}
+  return view.status === 0 && view.stdout.trim() === pkg.version;
+});
+if (published.length === manifests.length)
+  fail(`${version} is already on npm; later releases go through release.yml`);
 
 // 4. Fresh build output, checked the way npm will see it (publint, arethetypeswrong, own rules).
 for (const [cmd, args] of [
@@ -88,6 +94,12 @@ for (const [cmd, args] of [
 const packDir = mkdtempSync(join(tmpdir(), 'relvista-release-'));
 try {
   for (const { dir, pkg } of manifests) {
+    // Re-running after a partial publish: skip what is already on the registry.
+    const seen = run('npm', ['view', `${pkg.name}@${pkg.version}`, 'version']);
+    if (!dryRun && seen.status === 0 && seen.stdout.trim() === pkg.version) {
+      console.log(`\n${pkg.name}@${pkg.version} is already published; skipping.`);
+      continue;
+    }
     const dest = mkdtempSync(join(packDir, `${dir}-`));
     const packed = run('pnpm', ['pack', '--pack-destination', dest], {
       cwd: join(root, 'packages', dir),
@@ -96,6 +108,7 @@ try {
     if (packed.status !== 0 || !tarball) fail(`pnpm pack failed in packages/${dir}`);
     const args = ['publish', join(dest, tarball), '--access', 'public', '--no-provenance'];
     if (dryRun) args.push('--dry-run');
+    if (otp) args.push(`--otp=${otp}`);
     console.log(`\n$ npm ${args.join(' ')}`);
     const r = run('npm', args, { stdio: 'inherit' });
     if (r.status !== 0) fail(`publishing ${pkg.name}@${pkg.version} failed`);
