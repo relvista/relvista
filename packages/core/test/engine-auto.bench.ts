@@ -1,6 +1,6 @@
 // Measurement behind AUTO_DAGRE_MAX_NODES (docs/design/phase3-v1.md §3.3, decision 0003).
 // Not part of `pnpm test` (vitest only collects *.test.ts there). Run it with
-//   pnpm --filter @relvista/core exec vitest bench --run test/engine-auto.bench.ts
+//   pnpm --filter @relvista/core exec vitest bench --run --reporter=verbose test/engine-auto.bench.ts
 // It prints the quality table (dagre vs ELK per connected component) and benches both engines.
 //
 // Quality is compared on the placement each engine produces, with every ref drawn as a straight
@@ -18,7 +18,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import {
   AUTO_DAGRE_MAX_NODES,
   compileDbml,
@@ -364,16 +364,18 @@ const examples = loadExamples();
 const ecommerce = examples.find(([n]) => n === '02-ecommerce.dbml')![1];
 const small = compileDbml(randomSchema(7)).model!;
 
-describe('layout time', () => {
-  for (const [name, model] of [
-    ['02-ecommerce', ecommerce],
-    ['random-7', small],
-  ] as const) {
-    bench(`${name} dagre`, async () => {
-      await layoutDiagram(model, { engine: 'dagre' });
-    });
-    bench(`${name} elk`, async () => {
-      await layoutDiagram(model, { engine: 'elk' });
-    });
-  }
-});
+for (const [name, model] of [
+  ['02-ecommerce', ecommerce],
+  ['random-7', small],
+] as const) {
+  test(`layout time: ${name}`, async ({ bench }) => {
+    await bench.compare(
+      bench(`${name} dagre`, async () => {
+        await layoutDiagram(model, { engine: 'dagre' });
+      }),
+      bench(`${name} elk`, async () => {
+        await layoutDiagram(model, { engine: 'elk' });
+      }),
+    );
+  });
+}

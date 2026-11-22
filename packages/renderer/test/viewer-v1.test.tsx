@@ -168,8 +168,9 @@ function edgeTone(root: ParentNode, a: string, b: string): string | null {
   return el?.querySelector('[data-rv-tone]')?.getAttribute('data-rv-tone') ?? null;
 }
 function translate(el: HTMLElement): { x: number; y: number } {
-  const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(el.style.transform)!;
-  return { x: Number(m[1]), y: Number(m[2]) };
+  // CSSOM serialises `translate(x, 0)` as `translate(x)` (jsdom 31 does too): ty defaults to 0.
+  const m = /translate\(([-\d.]+)px(?:,\s*([-\d.]+)px)?\)/.exec(el.style.transform)!;
+  return { x: Number(m[1]), y: Number(m[2] ?? 0) };
 }
 
 async function viewer(props: Partial<Parameters<typeof DbmlViewer>[0]> = {}) {

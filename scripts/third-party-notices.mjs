@@ -23,11 +23,18 @@ const BUNDLES = [
 
 /**
  * Code the bundlers write into the bundles themselves (virtual modules, so no node_modules path
- * the build could record): Vite's modulepreload polyfill in the editor, webpack's runtime in the
- * docs site. `from` is the chain of packages to resolve the bundler through.
+ * the build could record): Vite's modulepreload polyfill and Rolldown's runtime (Vite 8 bundles
+ * with Rolldown) in the editor, webpack's runtime in the docs site. `from` is the chain of
+ * packages to resolve the bundler through.
  */
 const BUNDLER_CODE = [
   { bundle: 'editor', from: ['apps/editor'], name: 'vite', what: 'its modulepreload polyfill' },
+  {
+    bundle: 'editor',
+    from: ['apps/editor', 'vite'],
+    name: 'rolldown',
+    what: 'its module runtime',
+  },
   {
     bundle: 'docs',
     from: ['apps/docs', '@docusaurus/core'],
