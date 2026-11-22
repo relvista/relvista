@@ -101,7 +101,7 @@ export function useCanvasGeometry(
     if (!model || !sync || complete) return;
     let alive = true;
     const run = () => {
-      let p: Promise<DiagramGeometry> | null = null;
+      let p: Promise<DiagramGeometry> | null;
       try {
         p = layoutAsync(model, { ...options, engine: 'auto', ...(workerUrl ? { workerUrl } : {}) });
       } catch {

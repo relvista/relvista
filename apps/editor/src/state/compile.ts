@@ -190,7 +190,7 @@ export class CompileScheduler {
 
   private ensureWorker(): CompileWorkerLike | null {
     if (this.worker || this.workerFailed) return this.worker;
-    let w: CompileWorkerLike | null = null;
+    let w: CompileWorkerLike | null;
     try {
       w = this.createWorker();
     } catch (e) {
