@@ -169,9 +169,16 @@ for one fence with `ssr=false`.
   relvista does not wrap `CodeBlock`: that is where `@docusaurus/theme-live-codeblock` and sites'
   own `swizzle --wrap` wrappers hook in, and only one plugin's `@theme-init` wrapper of a component
   can be active. `@theme/DbmlDiagram` is a new component. No other theme component is swizzled.
+- Pages without diagrams load no diagram code. The wrapper above is a stub on every MDX page; a
+  small webpack loader makes each page with a ` ```dbml ` or ` ```dbml-diff ` fence load the
+  diagram component before it renders (a top-level `await import()`, so the page hydrates what the
+  server rendered), and the theme code sits in its own chunks, never in a page's chunk: the
+  prefetch of links to diagram pages does not download it either.
 - During server rendering the static SVG (or, with `ssr` off, a placeholder of the final height)
-  is emitted; the viewer (React Flow, `@dbml/parse`, ELK auto-layout) loads in a separate chunk
-  only on pages that show a diagram.
+  is emitted; the viewer (React Flow, `@dbml/parse`) loads in a separate chunk after the page
+  hydrates, only on pages that show a diagram. ELK (in a Web Worker) loads only for a diagram the
+  build did not lay out, the PDF dialog and jsPDF on the first PDF export, PNG export and print on
+  use.
 - A small webpack loader renames shadowing `catch` parameters in `@dbml/parse`'s bundle, working around
   a terser miscompilation that otherwise breaks `use` statements in production builds.
 
