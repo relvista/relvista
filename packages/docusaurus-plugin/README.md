@@ -28,6 +28,12 @@ Requires Docusaurus 3.6 or later with the classic theme (tested with 3.6 and 3.1
 [`@relvista/renderer`](https://www.npmjs.com/package/@relvista/renderer) and
 [`@relvista/core`](https://www.npmjs.com/package/@relvista/core) with it.
 
+A fresh install of Docusaurus 3.6 to 3.10.0 does not build, with or without relvista: today's
+webpack rejects the options of their progress bar (`ValidationError: Invalid options object.
+Progress Plugin has been initialized…`). Upgrade Docusaurus to 3.10.1 or later, use its faster
+bundler (`@docusaurus/faster`), or pin webpack with `"overrides": { "webpack": "5.95.0" }` in
+`package.json` (Yarn: `resolutions`, pnpm: `pnpm.overrides`).
+
 ```ts title="docusaurus.config.ts"
 export default {
   plugins: ['@relvista/docusaurus-plugin'], // or [['@relvista/docusaurus-plugin', { highlight: false }]]
