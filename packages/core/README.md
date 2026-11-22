@@ -57,7 +57,8 @@ entry: 'main.dbml' }`.
 
 - **Model**: `compileDbml`, `selectView` (DiagramViews), diagnostics with source spans.
 - **Layout file**: `parseLayout`, `serializeLayout`, `emptyLayout`, `pruneLayout`, `renameNode`,
-  node ids (`tableId`, `noteId`, `groupId`). The JSON Schema ships as
+  node ids (`tableId`, `noteId`, `groupId`); per-view settings with `viewDetailLevel`,
+  `withViewDetailLevel` and `renameViewSettings`. The JSON Schema ships as
   `@relvista/core/layout.schema.json`.
 - **Geometry and auto-layout**: `measureTable` and the drawing `METRICS`, `layoutDiagramSync`
   (dagre or grid, synchronous) and `layoutDiagram` (ELK in a worker, or `engine: 'auto'`).
