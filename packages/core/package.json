@@ -1,6 +1,6 @@
 {
   "name": "@relvista/core",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "DBML parsing, diagram model, layout file and auto-layout for relvista",
   "keywords": [
     "dbml",
