@@ -31,7 +31,6 @@
     "@axe-core/playwright": "4.14.0",
     "@docusaurus/module-type-aliases": "3.10.2",
     "@docusaurus/theme-classic": "3.10.2",
-    "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@playwright/test": "1.65.1",
     "@types/node": "^24",
@@ -39,7 +38,7 @@
     "relvista-editor": "workspace:*",
     "typedoc": "0.28.20",
     "typedoc-plugin-markdown": "4.14.1",
-    "typescript": "~5.9.3"
+    "typescript": "~6.0.3"
   },
   "browserslist": {
     "production": [

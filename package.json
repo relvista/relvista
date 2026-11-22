@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
@@ -34,13 +34,13 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "@changesets/cli": "^3.0.3",
-    "@eslint/js": "^9",
+    "@eslint/js": "^10",
     "@types/node": "^24",
-    "eslint": "^9",
+    "eslint": "^10",
     "globals": "^17.14.0",
     "prettier": "^3",
     "publint": "0.3.25",
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0"
   }
 }

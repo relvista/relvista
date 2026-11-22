@@ -26,13 +26,12 @@
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.2",
     "@docusaurus/theme-classic": "3.10.2",
-    "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@playwright/test": "1.65.1",
     "@types/node": "^24",
     "@types/react": "^19",
     "postcss": "8.5.33",
-    "typescript": "~5.9.3"
+    "typescript": "~6.0.3"
   },
   "engines": {
     "node": ">=20.0"

@@ -3,7 +3,7 @@
 | Concern      | Tool                                                                           | Config                                  |
 | ------------ | ------------------------------------------------------------------------------ | --------------------------------------- |
 | Packages     | pnpm 9.15 workspace (`apps/*`, `packages/*`)                                   | `pnpm-workspace.yaml`, `packageManager` |
-| Node         | Node 24 (>= 20 supported)                                                      | `.nvmrc`, `engines`                     |
+| Node         | Node 24 (dev tooling: 22.22.2+ or 24.15+; published packages: >= 20)           | `.nvmrc`, `engines`                     |
 | Types        | TypeScript strict, ESM, `NodeNext`                                             | `tsconfig.base.json`                    |
 | Formatting   | Prettier 3                                                                     | `.prettierrc.json`, `.prettierignore`   |
 | Linting      | ESLint 9 flat config + `typescript-eslint` (non-type-checked recommended)      | `eslint.config.js`                      |

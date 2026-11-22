@@ -110,7 +110,7 @@ export function CardinalityMarker({
 }
 
 /** A ref line with its cardinality markers at both ends. */
-export const RefSvg = memo(function RefSvg({
+export const RefSvg = memo<RefSvgProps>(function RefSvg({
   refModel,
   route,
   state = 'normal',

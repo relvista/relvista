@@ -126,7 +126,7 @@ function Resizer({ id, v }: { id: string; v: ViewerState }): ReactElement | null
   );
 }
 
-export const TableNode = memo(function TableNode({
+export const TableNode = memo<NodeProps<TableFlowNode>>(function TableNode({
   id,
   data,
   width,
@@ -159,7 +159,7 @@ export const TableNode = memo(function TableNode({
   );
 });
 
-export const NoteNode = memo(function NoteNode({
+export const NoteNode = memo<NodeProps<NoteFlowNode>>(function NoteNode({
   id,
   data,
   width,
@@ -185,7 +185,7 @@ export const NoteNode = memo(function NoteNode({
   );
 });
 
-export const GroupNode = memo(function GroupNode({
+export const GroupNode = memo<NodeProps<GroupFlowNode>>(function GroupNode({
   id,
   data,
 }: NodeProps<GroupFlowNode>): ReactElement {
@@ -214,33 +214,32 @@ export const GroupNode = memo(function GroupNode({
   );
 });
 
-export const CollapsedGroupNode = memo(function CollapsedGroupNode({
-  id,
-  data,
-}: NodeProps<CollapsedGroupFlowNode>): ReactElement {
-  const v = useViewerState();
-  const { w, h, group, memberNames } = data;
-  return (
-    <div
-      className={nodeClass('collapsed-group', id, v)}
-      style={{ width: w, height: h }}
-      data-rv-collapsed="true"
-    >
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
-        <CollapsedGroupSvg
-          group={group}
-          box={{ x: 0, y: 0, width: w, height: h }}
-          memberNames={memberNames}
-          dimmed={isDimmed(id, v, group.tableIds)}
-          highlighted={v.hoveredId === id || v.highlighted.has(id)}
-          tone={nodeTone(v.decorations, id)}
-          badge={badgeOf(v.decorations, id)}
-        />
-      </svg>
-      <RowHandles ids={v.handles.get(id)} />
-    </div>
-  );
-});
+export const CollapsedGroupNode = memo<NodeProps<CollapsedGroupFlowNode>>(
+  function CollapsedGroupNode({ id, data }: NodeProps<CollapsedGroupFlowNode>): ReactElement {
+    const v = useViewerState();
+    const { w, h, group, memberNames } = data;
+    return (
+      <div
+        className={nodeClass('collapsed-group', id, v)}
+        style={{ width: w, height: h }}
+        data-rv-collapsed="true"
+      >
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
+          <CollapsedGroupSvg
+            group={group}
+            box={{ x: 0, y: 0, width: w, height: h }}
+            memberNames={memberNames}
+            dimmed={isDimmed(id, v, group.tableIds)}
+            highlighted={v.hoveredId === id || v.highlighted.has(id)}
+            tone={nodeTone(v.decorations, id)}
+            badge={badgeOf(v.decorations, id)}
+          />
+        </svg>
+        <RowHandles ids={v.handles.get(id)} />
+      </div>
+    );
+  },
+);
 
 export const nodeTypes = {
   rvTable: TableNode,

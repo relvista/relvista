@@ -21,7 +21,7 @@ export interface GroupSvgProps {
 }
 
 /** A TableGroup's tinted rectangle with its name in the top band. */
-export const GroupSvg = memo(function GroupSvg({
+export const GroupSvg = memo<GroupSvgProps>(function GroupSvg({
   group,
   box,
   dimmed,

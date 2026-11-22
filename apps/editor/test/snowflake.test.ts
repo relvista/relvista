@@ -234,6 +234,7 @@ describe('Snowflake export', () => {
       } catch (e) {
         throw new Error(
           `Snowflake importer rejected the output: ${JSON.stringify(e).slice(0, 500)}\n${sql}`,
+          { cause: e },
         );
       }
       const back = compileDbml(dbml).model;
