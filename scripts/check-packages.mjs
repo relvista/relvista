@@ -119,10 +119,17 @@ export function fileProblems(dir, files) {
   return problems;
 }
 
+/**
+ * The SPDX licence each package declares: MIT, except the renderer, whose tarball also ships the
+ * PDF export's fonts (SIL OFL 1.1, with Droid Sans Fallback glyphs under Apache 2.0).
+ */
+const LICENSES = { renderer: 'MIT AND OFL-1.1 AND Apache-2.0' };
+
 /** Problems in the packed package.json. */
 export function manifestProblems(dir, pkg) {
   const problems = REQUIRED_FIELDS.filter((k) => pkg[k] === undefined).map((k) => `no "${k}"`);
-  if (pkg.license !== 'MIT') problems.push('license is not MIT');
+  const license = LICENSES[dir] ?? 'MIT';
+  if (pkg.license !== license) problems.push(`license is not ${license}`);
   if (pkg.type !== 'module') problems.push('type is not module');
   if (pkg.repository?.url !== REPO_URL) problems.push(`repository.url is not ${REPO_URL}`);
   if (pkg.repository?.directory !== `packages/${dir}`)

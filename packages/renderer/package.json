@@ -23,7 +23,7 @@
     "url": "git+https://github.com/relvista/relvista.git",
     "directory": "packages/renderer"
   },
-  "license": "MIT",
+  "license": "MIT AND OFL-1.1 AND Apache-2.0",
   "author": "relvista contributors",
   "type": "module",
   "sideEffects": [
