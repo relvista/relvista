@@ -213,9 +213,59 @@ export const TableSvg = memo<TableSvgProps>(function TableSvg({
   columnTones,
   badge,
 }: TableSvgProps): ReactElement {
+  // The content is memoised apart from the position and opacity: a hover dims every other table,
+  // and in a large diagram drawing each card again for that is the slow part.
+  return (
+    <g
+      className="rv-table"
+      data-rv-table={table.id}
+      data-rv-tone={tone}
+      transform={`translate(${box.x} ${box.y})`}
+      opacity={dimmed ? 0.28 : tone === 'removed' ? REMOVED_OPACITY : undefined}
+    >
+      <TableCard
+        table={table}
+        w={box.width}
+        h={box.height}
+        detailLevel={detailLevel}
+        highlighted={highlighted}
+        selected={selected}
+        highlightColumns={highlightColumns}
+        shadowFilter={shadowFilter}
+        measure={measure}
+        tone={tone}
+        columnTones={columnTones}
+        badge={badge}
+      />
+    </g>
+  );
+});
+
+interface TableCardProps extends Omit<TableSvgProps, 'box' | 'dimmed'> {
+  w: number;
+  h: number;
+  detailLevel: DetailLevel;
+  highlighted: boolean;
+  selected: boolean;
+  measure: TextMeasure;
+}
+
+/** The content of a table card, inside `TableSvg`'s positioned group. */
+const TableCard = memo<TableCardProps>(function TableCard({
+  table,
+  w,
+  h,
+  detailLevel,
+  highlighted,
+  selected,
+  highlightColumns,
+  shadowFilter,
+  measure,
+  tone,
+  columnTones,
+  badge,
+}: TableCardProps): ReactElement {
   const { c, font, mono } = useColors();
-  const w = box.width;
-  const h = box.height;
   const r = METRICS.cornerRadius;
   const cols = visibleColumns(table, detailLevel);
   const userHeader = safeColor(table.headerColor);
@@ -237,13 +287,7 @@ export const TableSvg = memo<TableSvgProps>(function TableSvg({
   const typeRight = w - px;
 
   return (
-    <g
-      className="rv-table"
-      data-rv-table={table.id}
-      data-rv-tone={tone}
-      transform={`translate(${box.x} ${box.y})`}
-      opacity={dimmed ? 0.28 : tone === 'removed' ? REMOVED_OPACITY : undefined}
-    >
+    <>
       <rect
         width={w}
         height={h}
@@ -464,6 +508,6 @@ export const TableSvg = memo<TableSvgProps>(function TableSvg({
         strokeWidth={selected ? 2 : 1}
       />
       {tone ? <ToneRing tone={tone} width={w} height={h} radius={r} /> : null}
-    </g>
+    </>
   );
 });
