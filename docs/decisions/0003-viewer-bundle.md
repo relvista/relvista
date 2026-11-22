@@ -107,6 +107,13 @@ gap and could raise the threshold (the failing small components are almost all l
 100 % vs 17 % pass at two nodes with and without (b)). Ref density as a second criterion was not
 measured.
 
+**Owner sign-off (2026-11-22).** The owner approved the rule, not a fixed number:
+`AUTO_DAGRE_MAX_NODES` is the largest component size at which dagre is within 5 % of ELK on
+(a), (c) and (d) in at least 95 % of components, measured with
+`packages/core/test/engine-auto.bench.ts`. That is 3 with today's dagre. When dagre changes (for
+example the post-pass above), re-run the bench, append the new table here with its date, and set
+the constant from it; no new decision is needed as long as the rule is unchanged.
+
 ## Not done (yet)
 
 - Splitting `@dbml/parse` further is not possible without forking it.
