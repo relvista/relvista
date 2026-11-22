@@ -10,12 +10,17 @@ keep their own licences.
 | --- | --- | --- | --- |
 | `sansRegular.js` | Noto Sans Regular, subset (Latin, Greek, Cyrillic) | SIL Open Font License 1.1 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic) |
 | `sansBold.js` | Noto Sans Bold, subset (Latin, Greek, Cyrillic) | SIL Open Font License 1.1 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic) |
-| `cjk.js` | Noto Sans Regular (Latin, Greek, Cyrillic) merged with Droid Sans Fallback (CJK ideographs, kana, full-width forms) | SIL Open Font License 1.1 (the Noto Sans glyphs) and Apache License 2.0 (the Droid Sans Fallback glyphs) | Copyright 2022 The Noto Project Authors; Digitized data copyright Google Corporation (c) 2006; Copyright (C) 2008 The Android Open Source Project |
+| `cjk.js` | Noto Sans Regular (Latin, Greek, Cyrillic) merged with Droid Sans Fallback (CJK ideographs, kana, full-width forms) | SIL Open Font License 1.1 (the merged font); its Droid Sans Fallback glyphs come under the Apache License 2.0 | Copyright 2022 The Noto Project Authors; Digitized data copyright Google Corporation (c) 2006; Copyright (C) 2008 The Android Open Source Project |
 
-Changes made by relvista (a modified version under both licences): subset to the ranges above, hinting
-and OpenType layout tables removed, Noto Sans glyphs scaled to 256 units per em and merged with
-Droid Sans Fallback's into one font named "relvista PDF CJK", each file zlib-deflated and
-base64-encoded into a JavaScript module.
+Changes made by relvista: subset to the ranges above, hinting and OpenType layout tables removed,
+Noto Sans glyphs scaled to 256 units per em and merged with Droid Sans Fallback's into one font
+named "relvista PDF CJK", each file zlib-deflated and base64-encoded into a JavaScript module.
+
+The merged font is a modified version of Noto Sans, so it is distributed, as a whole, under the SIL
+Open Font License 1.1, as the OFL requires of modified versions (section 5). The glyphs taken from
+Droid Sans Fallback are a derivative of a work under the Apache License 2.0, which allows
+distributing derivative works under other terms (section 4); their copyright notices and the
+Apache License text below stay with them.
 
 Sources: Noto Sans from https://github.com/notofonts/notofonts.github.io (`fonts/NotoSans/unhinted/ttf/`);
 Droid Sans Fallback (`DroidSansFallbackFull.ttf`) from the Android Open Source Project,
