@@ -1334,7 +1334,8 @@ Recorded by the wave-2 integration (2026-11-21):
   the API instance's sidebar metadata is ~18 KB). Accepted: the rest is `main.js` (141 → 166 KB)
   and the route map (2.5 → 9.9 KB) carrying the ~320 generated API routes, and `relvista-theme`
   (8 KB), which arrives with the prefetch of linked diagram pages rather than for the page itself
-  (loading it lazily from the MDX `code` wrapper did not remove it and grew the page chunks).
+  (loading it lazily from the MDX `code` wrapper did not remove it and grew the page chunks;
+  1.1 removed it, see "Recorded by the 1.1 bundle work" below).
   Fewer API pages (`outputFileStrategy: 'modules'`) would cut the route map but make the reference
   pages very long. Pages with diagrams went from 1013 KB to ~670 KB (no ELK in the browser).
   Editor first load: 1549 → ~1600 KB; the Compare, PDF and view-editor dialogs load on first use.
@@ -1430,3 +1431,70 @@ Recorded for 1.1 (2026-11-22):
   note above anticipated is in (`layout-rows.ts`, [autolayout.md](autolayout.md)); the bench was
   re-run with the signed-off rule unchanged and gives 4 (95 % on (a)+(c)+(d) up to 4 nodes).
   Tables: decision 0003, "Re-measurement 2026-11-22".
+
+Recorded by the 1.1 bundle work (2026-11-22, branch `feat/docs-bundle`):
+
+- **No relvista code on pages without diagrams.** Measured as the review-round-3 bundle size above
+  (every script a page downloads until the network is idle, prefetches of linked pages included,
+  `gzip -9`), with each file classified by the bundle manifest the docs build writes
+  (`apps/docs/plugins/bundle-manifest.ts`): a file holds relvista code when it has a module of
+  `@relvista/core`, `@relvista/renderer` or `@relvista/docusaurus-plugin`, or of an npm package
+  that only they import (reachable from the entries only through a relvista module; Docusaurus'
+  own theme modules excepted). CSS is not counted (one global stylesheet). Two pieces are allowed
+  everywhere: the MDX `code` hook (`theme/MDXComponents/Code` + `client/fence`, ~0.5 KB gzip,
+  with Docusaurus' MDX components; relvista hooks the MDX `code` element, which is global, and
+  the hook is what hands a fence to the diagram code) and the DBML Prism grammar (~0.7 KB gzip in
+  `main.js`, a client module: the `highlight` option).
+- **Design.** The MDX `code` wrapper became a stub that renders a registered fence component. A
+  `post` webpack loader on `.md`/`.mdx` (`loaders/fence-import`) appends to each compiled page with
+  a `language-dbml(-diff)` code element: in the browser bundle a top-level
+  `await import(/* relvista-fence */ client/DbmlFence)` and its registration, in the server bundle
+  static imports. The page module becomes an async module, so Docusaurus (which loads route
+  modules with `import()`) waits for the component before rendering or hydrating: the page
+  hydrates what the server rendered, no Suspense on the server path (§5.1). Docusaurus' prefetch
+  (`__webpack_require__.gca`) downloads only a linked route's own named chunks, so the fence chunk
+  and the split `relvista-theme` chunk are never prefetched. The 1.0 attempt failed because the
+  wrapper loaded the theme code itself (it stayed in Docusaurus' MDX components chunk). Without the
+  loader (MDX it did not see) the stub falls back to `lazy()` with the code block as fallback.
+- **Chunks.** `relvista-theme`: the plugin's modules in two or more chunks, now also the ELK worker's
+  URL module; every theme module is in the fence chunk (the stub's fallback import creates it on
+  every site), so whatever a page imports (`@theme/DbmlDiagram`, the gallery) moves there and no
+  page chunk carries theme code. Docusaurus modules the theme imports (Tabs, TabItem, their
+  helpers) went from one vendor chunk (by luck of its 20 KB `minSize`) to a copy per gallery page
+  chunk (+27 KB of prefetch per docs page); a second cache group (`relvistaThemeDeps`, priority
+  -15, reads `moduleGraph.getIncomingConnections`) shares them once; it selects nothing when a
+  bundler does not pass the module graph to `test` (copies, no failure). Rspack (checked with
+  the packed tarballs in a scratch site, `@docusaurus/faster` 3.10.2, Rspack 1.7.12, build and
+  `docusaurus start`): fences, a `dbml-diff` fence and `@theme/DbmlDiagram` render at build time
+  and hydrate, also after client navigation, and the diagram-free page that links to them loads
+  no relvista chunk.
+- **Renderer.** The canvas's `exportSvg` serialises the drawing in the browser
+  (`export/domMarkup`: `createRoot` + `flushSync` + `XMLSerializer`, same document as
+  `renderDiagramSvgString` up to attribute spelling, tested over every example), so
+  `react-dom/server` (~60 KB gzip) left the viewer chunk; PNG export and print still use it, on
+  use. `DbmlViewer` loads the PDF dialog and tile planner when the dialog opens
+  (`viewer/PdfExport`) and `exportPdfWithReport` on export; `isViewEmpty` moved to
+  `nav/viewEmpty` (still exported from `PdfDialog`).
+- **Numbers** (gzip, `apps/docs` production build, Chromium 1360 px):
+
+  | Page                            | Before (1.0, `main`)            | After                  |
+  | ------------------------------- | ------------------------------- | ---------------------- |
+  | `docs/layout-file` (no diagram) | 294,120 total, 8,283 relvista   | 281,134 total, 0       |
+  | `docs/gallery/02-ecommerce`     | 689,892 total, 404,055 relvista | 618,964 total, 334,236 |
+  | `docs/getting-started` (fences) | 689,892 total, 404,055 relvista | 618,490 total, 335,134 |
+
+  After, a diagram page's relvista JavaScript is the vendor chunk (DBML parser, React Flow,
+  dagre, ajv: 259.5 KB), `relvista-viewer` (67 KB), `relvista-theme` (7.7 KB) and, with fences,
+  `relvista-fence` (0.9 KB). The "before" diagram pages carried `react-dom/server` (60 KB) in the
+  vendor chunk.
+
+- **Gate.** `apps/docs/e2e/bundle.spec.ts` (docs e2e, CI): `docs/layout-file`, `docs/editor`,
+  `docs/api/`, `blog`, `third-party-notices` load no relvista module beyond the two allowed ones
+  and no relvista-only npm package; `docs/layout-file` stays under 300 KB in all;
+  `docs/getting-started` and `docs/gallery/02-ecommerce` stay under **345,000 B** of relvista
+  JavaScript and load no jsPDF, svg2pdf.js, ELK, `react-dom/server` or PDF/PNG/print modules.
+- Open: layout validation (ajv + fast-uri, about a fifth of the vendor chunk, roughly 50 KB gzip)
+  ships with every viewer although only `parseLayout` needs it (layout files, share links);
+  moving `parseLayout` out of `layout/layout.ts` and loading it on use, or a standalone
+  (precompiled) ajv validator, would take it out. The search panel and the diff code (~5 KB gzip
+  each) still come with the viewer.

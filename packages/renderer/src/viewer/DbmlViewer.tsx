@@ -23,6 +23,8 @@ import {
   type Viewport,
 } from '@relvista/core';
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -43,11 +45,10 @@ import {
 import { narrowViewerHeight, viewerPadding } from '../canvas/frame.js';
 import type { CanvasNodeEvent } from '../canvas/types.js';
 import { diffDecorations, diffLegend } from '../diff/decorations.js';
-import { exportPdfWithReport, type PdfOptions, type PdfPageSource } from '../export/pdf/index.js';
-import { contentBoxes, paddedBounds, planTiles, type TilePlan } from '../export/pdf/plan.js';
+import type { PdfOptions, PdfPageSource } from '../export/pdf/index.js';
 import { layoutSync } from '../geometry.js';
 import { FocusControl } from '../nav/FocusControl.js';
-import { PdfDialog, isViewEmpty } from '../nav/PdfDialog.js';
+import { isViewEmpty } from '../nav/viewEmpty.js';
 import { SearchPanel, type SearchPanelMode } from '../nav/SearchPanel.js';
 import type { TablePath } from '../nav/path.js';
 import {
@@ -62,6 +63,9 @@ import type { ColorMode } from '../theme.js';
 import { AlertIcon } from './icons.js';
 import { SideCardActionsContext, type SideCardActions } from './SideCard.js';
 import { DEFAULT_TOOLBAR, Toolbar, type ExportKind, type ToolbarItem } from './Toolbar.js';
+
+// The PDF dialog and its tile planner load when the dialog first opens (jsPDF later, on export).
+const PdfExport = lazy(() => import('./PdfExport.js'));
 
 /** Props of `DbmlViewer`. */
 export interface DbmlViewerProps {
@@ -810,17 +814,6 @@ export function DbmlViewer({
     },
     [model, activeView, focus, baseDecorations, hostDecorations, canvasLayout, detail],
   );
-  const planFor = useCallback(
-    (o: PdfOptions, name?: string): TilePlan => {
-      const src = pageSource(name ?? activeView);
-      const b = src ? src.geometry.bounds : { x: 0, y: 0, width: 1, height: 1 };
-      return planTiles(paddedBounds(b), {
-        ...o,
-        ...(src ? { content: contentBoxes(src.geometry) } : {}),
-      });
-    },
-    [pageSource, activeView],
-  );
   const docTitle = (title ?? model?.project?.name ?? '').trim();
   const onPdf = useCallback(
     async (o: PdfOptions & { views: string[] }) => {
@@ -830,6 +823,7 @@ export function DbmlViewer({
       if (!pages.length) return;
       say('Preparing the PDF…');
       try {
+        const { exportPdfWithReport } = await import('../export/pdf/index.js');
         const report = await exportPdfWithReport(pages, {
           ...options,
           ...(docTitle ? { title: docTitle } : {}),
@@ -1151,13 +1145,15 @@ export function DbmlViewer({
       ) : null}
 
       {pdfOpen && model ? (
-        <PdfDialog
-          views={pdfViews}
-          current={activeView}
-          planFor={planFor}
-          onExport={(o) => void onPdf(o)}
-          onClose={() => setPdfOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <PdfExport
+            views={pdfViews}
+            current={activeView}
+            pageSource={pageSource}
+            onExport={(o) => void onPdf(o)}
+            onClose={() => setPdfOpen(false)}
+          />
+        </Suspense>
       ) : null}
 
       <div
