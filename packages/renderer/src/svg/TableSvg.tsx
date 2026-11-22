@@ -199,7 +199,7 @@ export function ToneRing({
 }
 
 /** One table card: header band, column rows, key markers and badges, drawn at `box`. */
-export const TableSvg = memo(function TableSvg({
+export const TableSvg = memo<TableSvgProps>(function TableSvg({
   table,
   box,
   detailLevel = 'all',

@@ -49,7 +49,7 @@ export function noteLines(
  * A sticky note: a rounded card (yellowish, or the note's colour) with its text wrapped to the
  * box width and clipped to the box, fading out at the bottom when it does not fit.
  */
-export const NoteSvg = memo(function NoteSvg({
+export const NoteSvg = memo<NoteSvgProps>(function NoteSvg({
   note,
   box,
   dimmed,

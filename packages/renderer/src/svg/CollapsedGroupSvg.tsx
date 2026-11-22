@@ -55,7 +55,7 @@ function StackIcon({ cx, cy, color }: { cx: number; cy: number; color: string })
  * A collapsed TableGroup: a card like a table, with a header band in the group colour (or
  * `groupDefault`), the group name, and one row "N tables". Its refs attach to the header.
  */
-export const CollapsedGroupSvg = memo(function CollapsedGroupSvg({
+export const CollapsedGroupSvg = memo<CollapsedGroupSvgProps>(function CollapsedGroupSvg({
   group,
   box,
   memberNames,

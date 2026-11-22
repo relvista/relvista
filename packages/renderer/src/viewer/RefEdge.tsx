@@ -25,7 +25,7 @@ export const EDGE_HIT_WIDTH = 12;
  * Draws the ref from the shared route (same as the static SVG), not from React Flow's handle
  * coordinates; the per-column handles only anchor the edge for React Flow.
  */
-export const RefEdge = memo(function RefEdge({
+export const RefEdge = memo<EdgeProps<RefFlowEdge>>(function RefEdge({
   id,
   data,
 }: EdgeProps<RefFlowEdge>): ReactElement | null {
