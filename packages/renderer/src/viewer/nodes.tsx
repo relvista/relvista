@@ -1,12 +1,13 @@
 import {
   METRICS,
+  type Box,
   type DetailLevel,
   type StickyNote,
   type Table,
   type TableGroup,
 } from '@relvista/core';
 import { Handle, NodeResizer, Position, type Node, type NodeProps } from '@xyflow/react';
-import { memo, useCallback, useState, type ReactElement } from 'react';
+import { memo, useCallback, useMemo, useState, type ReactElement } from 'react';
 import { CollapsedGroupSvg } from '../svg/CollapsedGroupSvg.js';
 import { badgeOf, columnTonesOf, dimmedByDecorations, nodeTone } from '../svg/decorations.js';
 import { GroupSvg } from '../svg/GroupSvg.js';
@@ -57,6 +58,11 @@ const HIDDEN_HANDLE = {
   background: 'transparent',
   pointerEvents: 'none',
 } as const;
+
+/** The card's box in its own SVG, the same object while the size stays (`TableSvg` is memoised). */
+function useBox(w: number, h: number): Box {
+  return useMemo(() => ({ x: 0, y: 0, width: w, height: h }), [w, h]);
+}
 
 // Memoised: the canvas keeps a node's handle set while its refs attach to the same rows.
 const RowHandles = memo(function RowHandles({
@@ -146,13 +152,14 @@ export const TableNode = memo<NodeProps<TableFlowNode>>(function TableNode({
   // React Flow's size while a resize is in progress, else the laid-out one.
   const w = width ?? data.w;
   const h = height ?? data.h;
+  const box = useBox(w, h);
   return (
     <div className={nodeClass('table', id, v)} style={{ width: w, height: h }}>
       {v.resizable === 'all' ? <Resizer id={id} v={v} /> : null}
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
         <TableSvg
           table={table}
-          box={{ x: 0, y: 0, width: w, height: h }}
+          box={box}
           detailLevel={data.detail ?? v.detailLevel}
           dimmed={isDimmed(id, v)}
           highlighted={v.hoveredId === id || v.highlighted.has(id)}
@@ -178,13 +185,14 @@ export const NoteNode = memo<NodeProps<NoteFlowNode>>(function NoteNode({
   const { note } = data;
   const w = width ?? data.w;
   const h = height ?? data.h;
+  const box = useBox(w, h);
   return (
     <div className={nodeClass('note', id, v)} style={{ width: w, height: h }}>
       {v.resizable ? <Resizer id={id} v={v} /> : null}
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
         <NoteSvg
           note={note}
-          box={{ x: 0, y: 0, width: w, height: h }}
+          box={box}
           dimmed={isDimmed(id, v)}
           tone={nodeTone(v.decorations, id)}
           badge={badgeOf(v.decorations, id)}
@@ -200,12 +208,13 @@ export const GroupNode = memo<NodeProps<GroupFlowNode>>(function GroupNode({
 }: NodeProps<GroupFlowNode>): ReactElement {
   const v = useViewerState();
   const { w, h, group } = data;
+  const box = useBox(w, h);
   return (
     <div className={nodeClass('group', id, v)} style={{ width: w, height: h }}>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
         <GroupSvg
           group={group}
-          box={{ x: 0, y: 0, width: w, height: h }}
+          box={box}
           dimmed={isDimmed(id, v, group.tableIds)}
           tone={nodeTone(v.decorations, id)}
           badge={badgeOf(v.decorations, id)}
@@ -227,6 +236,7 @@ export const CollapsedGroupNode = memo<NodeProps<CollapsedGroupFlowNode>>(
   function CollapsedGroupNode({ id, data }: NodeProps<CollapsedGroupFlowNode>): ReactElement {
     const v = useViewerState();
     const { w, h, group, memberNames } = data;
+    const box = useBox(w, h);
     return (
       <div
         className={nodeClass('collapsed-group', id, v)}
@@ -236,7 +246,7 @@ export const CollapsedGroupNode = memo<NodeProps<CollapsedGroupFlowNode>>(
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rv-node-svg">
           <CollapsedGroupSvg
             group={group}
-            box={{ x: 0, y: 0, width: w, height: h }}
+            box={box}
             memberNames={memberNames}
             dimmed={isDimmed(id, v, group.tableIds)}
             highlighted={v.hoveredId === id || v.highlighted.has(id)}
