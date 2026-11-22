@@ -83,7 +83,9 @@ the stylesheet. The variables are listed in the
 
 ## Credits and licence
 
-MIT. The interactive viewer is built on [React Flow](https://reactflow.dev) (MIT, by xyflow); its
+relvista's code is MIT. The package also ships the PDF export's fonts under their own licences
+(below), so its `license` field reads `MIT AND OFL-1.1 AND Apache-2.0`. The interactive viewer is
+built on [React Flow](https://reactflow.dev) (MIT, by xyflow); its
 attribution badge is hidden in the canvas and credited here instead. PDF export uses
 [jsPDF](https://github.com/parallax/jsPDF) and [svg2pdf.js](https://github.com/yWorks/svg2pdf.js)
 (both MIT). For text outside WinAnsi it embeds subsets of Noto Sans (SIL Open Font License 1.1)

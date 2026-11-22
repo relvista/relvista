@@ -109,7 +109,8 @@ Rules for the packages' `package.json`, kept by `packages:check`:
 - `type: module`, `exports` with `types` first, then `import` and `default`; a `./package.json`
   export; `main` and `types` for old resolvers; `sideEffects` (`false` for core, `**/*.css` for
   the renderer and the plugin); `files` lists only build output plus `README.md` and `LICENSE`.
-- `license`, `author`, `repository` (with `directory`), `homepage`, `bugs`, `keywords`,
+- `license` (`MIT`; the renderer's is `MIT AND OFL-1.1 AND Apache-2.0`, as its tarball ships the
+  PDF export's fonts), `author`, `repository` (with `directory`), `homepage`, `bugs`, `keywords`,
   `engines.node >=20`, `publishConfig: { access: 'public', provenance: true }`. `version` is only
   ever changed by Changesets (the version pull request).
 - **Exact pins** for every runtime dependency whose behaviour shapes output: `@dbml/parse`,
