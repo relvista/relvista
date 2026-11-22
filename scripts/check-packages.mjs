@@ -17,14 +17,35 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { publint } from 'publint';
 import { formatMessage } from 'publint/utils';
 import { editorLicenseProblems, staleLicenses } from './copy-license.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const bin = (name) => join(root, 'node_modules', '.bin', name);
+/** A dev dependency's CLI as `[command, argv]`, run with this Node (`.bin` shims need a shell on Windows). */
+function cli(pkgName, binName) {
+  const dir = join(root, 'node_modules', ...pkgName.split('/'));
+  const { bin } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  const entry = typeof bin === 'string' ? bin : bin[binName];
+  return (argv) => [process.execPath, [join(dir, entry), ...argv]];
+}
+const attw = cli('@arethetypeswrong/cli', 'attw');
+
+/**
+ * pnpm as `[command, argv]`: the pnpm that runs this script (`pnpm packages:check` sets
+ * npm_execpath), else `pnpm` from PATH. On Windows PATH only has a `.cmd` shim, which needs a shell.
+ */
+function pnpm(argv) {
+  const exec = process.env.npm_execpath;
+  if (exec && /^pnpm/i.test(basename(exec))) {
+    return /\.[cm]?js$/i.test(exec) ? [process.execPath, [exec, ...argv]] : [exec, argv];
+  }
+  if (process.platform === 'win32')
+    throw new Error('run this script through pnpm on Windows: pnpm packages:check');
+  return ['pnpm', argv];
+}
 const args = new Set(process.argv.slice(2));
 
 /** Published packages, with the files a build must have produced before packing. */
@@ -113,32 +134,40 @@ export function manifestProblems(dir, pkg) {
   return problems;
 }
 
-function run(cmd, argv, cwd) {
+function run([cmd, argv], cwd) {
   const r = spawnSync(cmd, argv, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
   return r;
 }
 
 function pack(dir, dest) {
-  const r = run('pnpm', ['pack', '--pack-destination', dest], join(root, 'packages', dir));
+  const r = run(pnpm(['pack', '--pack-destination', dest]), join(root, 'packages', dir));
   if (r.status !== 0) throw new Error(`pnpm pack failed in packages/${dir}:\n${r.stderr}`);
   const tgz = readdirSync(dest).find((f) => f.endsWith('.tgz'));
   if (!tgz) throw new Error(`pnpm pack wrote no tarball for packages/${dir}`);
   return join(dest, tgz);
 }
 
+/**
+ * `tar` on the tarball, run in its directory with a bare file name: GNU tar (first on PATH in Git
+ * for Windows) reads `C:\…` as a remote `host:path`, bsdtar (Windows' own) and macOS tar do not care.
+ */
+const tar = (flags, tarball, ...rest) =>
+  run(['tar', [flags, basename(tarball), ...rest]], dirname(tarball));
+
 function tarballFiles(tarball) {
-  const r = run('tar', ['-tzf', tarball]);
+  const r = tar('-tzf', tarball);
   if (r.status !== 0) throw new Error(`tar -tzf ${tarball} failed:\n${r.stderr}`);
+  // Windows' tar.exe ends its lines with CRLF.
   return r.stdout
-    .split('\n')
+    .split(/\r?\n/)
     .filter((l) => l && !l.endsWith('/'))
     .map((l) => l.replace(/^package\//, ''))
     .sort();
 }
 
 function packedManifest(tarball) {
-  const r = run('tar', ['-xzOf', tarball, 'package/package.json']);
+  const r = tar('-xzOf', tarball, 'package/package.json');
   if (r.status !== 0) throw new Error(`could not read package.json from ${tarball}`);
   return JSON.parse(r.stdout);
 }
@@ -160,7 +189,7 @@ async function runPublint(tarball) {
 function runAttw(tarball, exclude = []) {
   const argv = [tarball, '--profile', 'esm-only', '--format', 'json', '--no-color'];
   if (exclude.length) argv.push('--exclude-entrypoints', ...exclude);
-  const r = run(bin('attw'), argv);
+  const r = run(attw(argv));
   let report;
   try {
     report = JSON.parse(r.stdout);
