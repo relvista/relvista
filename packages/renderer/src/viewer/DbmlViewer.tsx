@@ -8,6 +8,7 @@ import {
   resolveTableRef,
   selectView,
   tableTitle,
+  viewDetailLevel,
   type Box,
   type CompileInput,
   type DetailLevel,
@@ -84,8 +85,15 @@ export interface DbmlViewerProps {
   onDiagnostics?: (diagnostics: Diagnostic[]) => void;
   /** Nodes can be dragged (positions are not persisted). Default true. */
   draggable?: boolean;
-  /** Overrides `layout.settings.detailLevel` (the toolbar's Detail menu can still change it). */
+  /**
+   * Overrides the layout's detail level, for every view (the toolbar's Detail menu can still
+   * change it). Without it, each view shows its saved level (`viewDetailLevel`).
+   */
   detailLevel?: DetailLevel;
+  /**
+   * Detail level of views the layout sets none for (no `detailLevel` prop either). Default 'all'.
+   */
+  defaultDetailLevel?: DetailLevel;
   /** Overrides `layout.settings.theme.edgeStyle`. Default orthogonal. */
   edgeStyle?: EdgeStyle;
   /**
@@ -335,6 +343,7 @@ export function DbmlViewer({
   onDiagnostics,
   draggable = true,
   detailLevel,
+  defaultDetailLevel,
   edgeStyle,
   minimap = 'auto',
   workerUrl,
@@ -447,7 +456,21 @@ export function DbmlViewer({
   // --- detail level --------------------------------------------------------------------------
   const [userDetail, setUserDetail] = useState<DetailLevel | null>(null);
   useEffect(() => setUserDetail(null), [detailLevel]);
-  const detail: DetailLevel = userDetail ?? detailLevel ?? layout?.settings?.detailLevel ?? 'all';
+  const detail: DetailLevel =
+    userDetail ?? detailLevel ?? viewDetailLevel(layout, activeView) ?? defaultDetailLevel ?? 'all';
+  /**
+   * Switches the view from the toolbar or a search hit (a deep link sets its own detail). The
+   * toolbar's detail choice is kept, unless the new view saves another level than the old one:
+   * then the new view's level shows.
+   */
+  const switchView = useCallback(
+    (name: string) => {
+      if (viewDetailLevel(layout, name) !== viewDetailLevel(layout, activeView))
+        setUserDetail(null);
+      setViewName(name);
+    },
+    [layout, activeView],
+  );
 
   // --- search, path, picked hit, focus --------------------------------------------------------
   const [search, setSearch] = useState<{
@@ -547,7 +570,7 @@ export function DbmlViewer({
       closeSearch();
       if (!m) return;
       if (hit.kind === 'view') {
-        setViewName(hit.id);
+        switchView(hit.id);
         return;
       }
       let p: Picked;
@@ -568,7 +591,7 @@ export function DbmlViewer({
       setPicked(p);
       frame(p.ids, true);
     },
-    [closeSearch, focusedIds, frame],
+    [closeSearch, focusedIds, frame, switchView],
   );
 
   const onPathChange = useCallback(
@@ -1077,7 +1100,7 @@ export function DbmlViewer({
           onPrint={onPrint}
           views={viewNames}
           view={activeView}
-          onViewChange={setViewName}
+          onViewChange={switchView}
           editorHref={href}
           {...(model ? { onSearch: () => (search ? closeSearch() : openSearch()) } : {})}
           searchOpen={!!search}

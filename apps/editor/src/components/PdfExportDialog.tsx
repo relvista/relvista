@@ -58,7 +58,7 @@ export function PdfExportDialog(props: { onClose(): void }): ReactElement | null
   const compare = useEditor((s) => s.compare);
   const detailOverride = useEditor((s) => s.detailOverride);
   const { mode } = useTheme();
-  const detail = shownDetail(layout, detailOverride);
+  const detail = shownDetail(layout, detailOverride, view);
 
   const source = useMemo(() => {
     if (!model) return null;

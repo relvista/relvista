@@ -1247,7 +1247,14 @@ and fixes only wiring. Anything beyond wiring goes back into §13.
 - Reading git refs from a local `.git` folder opened with the File System Access API (packfiles
   and deltas) — out of v1; hosted URLs only.
 - Per-view detail level (layout-1 has one `settings.detailLevel`); would need `layout-2` or an
-  `x-relvista-view-settings` extension key.
+  `x-relvista-view-settings` extension key. **Decided after 1.0: the extension key**, in
+  `settings` (1.0 rejects unknown keys inside `views[name]` but keeps `settings` `x-*` values
+  unread): `settings["x-relvista-view-settings"][view].detailLevel`, no `layout-2`. Core
+  `viewDetailLevel` / `withViewDetailLevel` / `renameViewSettings`; the editor's detail switch
+  writes the open view (the diagram-wide level removes the view's own); the viewer and plugin
+  start each view at its level (`detailLevel` prop, `detail=` and the toolbar still override; the
+  toolbar choice is dropped on a view switch only when the two views save different levels). The
+  editor PDF export still draws every page at the open view's level.
 - Whether `AUTO_DAGRE_MAX_NODES` should also consider ref density (decided by the wave-1 bench).
 
 Recorded by the wave-1 integration (2026-11-21):

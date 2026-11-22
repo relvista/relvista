@@ -6,6 +6,7 @@ import {
   layoutDiagramSync,
   mergeViewDefaults,
   selectView,
+  viewDetailLevel,
   type CompileInput,
   type DetailLevel,
   type DiagramGeometry,
@@ -87,7 +88,7 @@ export function prepareStatic(inputs: StaticInputs): Prepared {
       model,
       view,
       saved: layout ? mergeViewDefaults(layout, view) : null,
-      detailLevel: inputs.detailLevel ?? layout?.settings?.detailLevel ?? inputs.defaultDetailLevel,
+      detailLevel: inputs.detailLevel ?? viewDetailLevel(layout, view) ?? inputs.defaultDetailLevel,
       edgeStyle: layout?.settings?.theme?.edgeStyle ?? 'orthogonal',
     },
   };

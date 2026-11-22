@@ -13,6 +13,7 @@ import {
   type NodeLayout,
   type Side,
   type ThemeHints,
+  type ViewSettings,
   type Viewport,
 } from '../src/layout/index.js';
 
@@ -223,6 +224,12 @@ describe('TS types match the schema', () => {
       keyof ThemeHints
     >();
     expectTypeOf<Defs['side']['enum'][number]>().toEqualTypeOf<Side>();
+    expectTypeOf<Props<Defs['viewSettings']['additionalProperties']>>().toEqualTypeOf<
+      keyof ViewSettings
+    >();
+    expectTypeOf<
+      Defs['viewSettings']['additionalProperties']['properties']['detailLevel']['enum'][number]
+    >().toEqualTypeOf<NonNullable<ViewSettings['detailLevel']>>();
     expectTypeOf<Defs['settings']['properties']['detailLevel']['enum'][number]>().toEqualTypeOf<
       NonNullable<LayoutSettings['detailLevel']>
     >();

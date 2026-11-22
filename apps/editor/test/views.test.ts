@@ -71,6 +71,35 @@ describe('views manager: layout follows the views', () => {
     expect(layoutAfterViewOps(l, [{ op: 'delete', name: 'empty_view' }])).toBe(l);
     expect(layoutAfterViewOps(null, [{ op: 'delete', name: 'sales_view' }])).toBeNull();
   });
+  it("a view's own detail level follows a rename and goes with a delete", () => {
+    // Only settings, no `views` entry: the level still follows.
+    const l = {
+      ...emptyLayout(),
+      settings: {
+        detailLevel: 'keys' as const,
+        'x-relvista-view-settings': {
+          sales_view: { detailLevel: 'names' as const },
+          mixed_view: { detailLevel: 'all' as const },
+        },
+      },
+    };
+    const renamed = layoutAfterViewOps(l, [
+      { op: 'update', name: 'sales_view', newName: 'sales' },
+    ])!;
+    expect(renamed.settings).toEqual({
+      detailLevel: 'keys',
+      'x-relvista-view-settings': {
+        sales: { detailLevel: 'names' },
+        mixed_view: { detailLevel: 'all' },
+      },
+    });
+    expect(renamed.views).toBe(l.views);
+    const deleted = layoutAfterViewOps(renamed, [
+      { op: 'delete', name: 'sales' },
+      { op: 'delete', name: 'mixed_view' },
+    ])!;
+    expect(deleted.settings).toEqual({ detailLevel: 'keys' });
+  });
   it('rename then delete in one batch', () => {
     const l = layoutWithViews('a', 'b');
     const ops: ViewOp[] = [

@@ -175,3 +175,59 @@ test('the switcher filters once there are more than 7 views', async ({ page }) =
   await page.keyboard.press('Escape');
   await expect(viewButton(page)).toBeFocused();
 });
+
+test('detail level per view: stored on the open view, applied when switching back', async ({
+  page,
+}) => {
+  await openDoc(page, VIEWS);
+  const rows = page.locator('.rv-canvas .rv-column');
+  const detail = page.getByRole('radiogroup', { name: /Detail level/ });
+  const checked = (name: 'Names' | 'Keys' | 'All') =>
+    expect(detail.getByRole('radio', { name })).toHaveAttribute('aria-checked', 'true');
+  const switchTo = async (name: string) => {
+    await viewButton(page).click();
+    await page.getByRole('menuitemradio', { name }).click();
+    await expect(page.getByRole('button', { name: `View: ${name}` })).toBeVisible();
+  };
+  // The diagram-wide default: Keys.
+  await detail.getByRole('radio', { name: 'Keys' }).click();
+  await checked('Keys');
+  // A view without its own level follows the default; Names is stored on that view only.
+  await switchTo('sales_view');
+  await checked('Keys');
+  await expect.poll(() => rows.count()).toBeGreaterThan(0);
+  await detail.getByRole('radio', { name: 'Names' }).click();
+  await checked('Names');
+  await expect.poll(() => rows.count()).toBe(0);
+  await switchTo('All tables');
+  await checked('Keys');
+  await expect.poll(() => rows.count()).toBeGreaterThan(0);
+  await switchTo('sales_view');
+  await checked('Names');
+  await expect.poll(() => rows.count()).toBe(0);
+  let layout = (await saved(page)) as SavedLayout & { settings?: Record<string, unknown> };
+  expect(layout.settings).toEqual({
+    detailLevel: 'keys',
+    'x-relvista-view-settings': { sales_view: { detailLevel: 'names' } },
+  });
+
+  // Renaming the view keeps its level.
+  await viewButton(page).click();
+  await page.getByRole('menuitem', { name: 'Edit view…' }).click();
+  const edit = page.getByRole('dialog', { name: 'Edit view sales_view' });
+  await edit.getByLabel('Name').fill('sales');
+  await edit.getByRole('button', { name: 'Save view' }).click();
+  await expect(edit).toBeHidden();
+  await expect(page.getByRole('button', { name: 'View: sales' })).toBeVisible();
+  await checked('Names');
+  layout = (await saved(page)) as SavedLayout & { settings?: Record<string, unknown> };
+  expect(layout.settings).toEqual({
+    detailLevel: 'keys',
+    'x-relvista-view-settings': { sales: { detailLevel: 'names' } },
+  });
+
+  // Picking the default's level again makes the view follow the default.
+  await detail.getByRole('radio', { name: 'Keys' }).click();
+  layout = (await saved(page)) as SavedLayout & { settings?: Record<string, unknown> };
+  expect(layout.settings).toEqual({ detailLevel: 'keys' });
+});

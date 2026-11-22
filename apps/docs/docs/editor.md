@@ -140,7 +140,8 @@ Every view keeps its own layout; renaming or deleting a view renames or deletes 
 search over the diagram: tables, columns, enums, groups, notes and views. Picking a result centres
 and lights it and shows its code without moving your cursor. **Path** mode lights the shortest
 chain of refs between two tables. The detail switch (or <kbd>1</kbd> / <kbd>2</kbd> /
-<kbd>3</kbd>) shows table names only, keys, or every column, and is saved in the layout file.
+<kbd>3</kbd>) shows table names only, keys, or every column, and is saved in the layout file for
+the open view: a named view keeps its own level ([per-view detail](./layout-file.md#detail-level-per-view)).
 **Show related ▸ 1 / 2 / 3 hops** in a table's menu focuses on its neighbourhood. They work as in
 the docs: see [Exploring diagrams](./exploring.mdx).
 

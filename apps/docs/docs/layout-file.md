@@ -47,22 +47,27 @@ them with `$schema` unchanged. New files get the current id.
       "nodes": { "public.users": { "x": 600, "y": 400 }, "public.posts": { "collapsed": false } }
     }
   },
-  "settings": { "detailLevel": "keys", "theme": { "colorScheme": "auto", "showGrid": true } }
+  "settings": {
+    "detailLevel": "keys",
+    "theme": { "colorScheme": "auto", "showGrid": true },
+    "x-relvista-view-settings": { "billing": { "detailLevel": "names" } }
+  }
 }
 ```
 
 ## Fields
 
-| Field                  | Meaning                                                                                                                                                                                                    |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`              | Always `1`. A breaking change gets a new schema URL (`layout-2.json`) and version.                                                                                                                         |
-| `views`                | Layouts by view name. `"*"` is the default view.                                                                                                                                                           |
-| `views.*.nodes`        | Placement by stable node id: `x`/`y` top-left corner in diagram units; optional `w`/`h` size overrides (omit to use the measured size); `collapsed` (header only); `pinned` (auto-layout leaves it alone). |
-| `views.*.viewport`     | Camera: `x`/`y` is the diagram point at the canvas top-left; `zoom` > 0.                                                                                                                                   |
-| `views.*.edges`        | Manual edge routing by ref id: `waypoints` (bend points, source to target) and the `sourceSide`/`targetSide` (`top`, `right`, `bottom`, `left`) to attach to.                                              |
-| `settings.detailLevel` | `all` columns, `keys` only (PK/FK), or table `names` only.                                                                                                                                                 |
-| `settings.theme`       | Rendering hints (`colorScheme`, `showGrid`, `edgeStyle`). Viewers may ignore them.                                                                                                                         |
-| `x-*`                  | Extension keys, allowed at the top level and in `settings`. Tools preserve them and never interpret them.                                                                                                  |
+| Field                               | Meaning                                                                                                                                                                                                    |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                           | Always `1`. A breaking change gets a new schema URL (`layout-2.json`) and version.                                                                                                                         |
+| `views`                             | Layouts by view name. `"*"` is the default view.                                                                                                                                                           |
+| `views.*.nodes`                     | Placement by stable node id: `x`/`y` top-left corner in diagram units; optional `w`/`h` size overrides (omit to use the measured size); `collapsed` (header only); `pinned` (auto-layout leaves it alone). |
+| `views.*.viewport`                  | Camera: `x`/`y` is the diagram point at the canvas top-left; `zoom` > 0.                                                                                                                                   |
+| `views.*.edges`                     | Manual edge routing by ref id: `waypoints` (bend points, source to target) and the `sourceSide`/`targetSide` (`top`, `right`, `bottom`, `left`) to attach to.                                              |
+| `settings.detailLevel`              | `all` columns, `keys` only (PK/FK), or table `names` only.                                                                                                                                                 |
+| `settings.x-relvista-view-settings` | Per-view settings by view name (not `"*"`): `detailLevel` of that view. See [Detail level per view](#detail-level-per-view).                                                                               |
+| `settings.theme`                    | Rendering hints (`colorScheme`, `showGrid`, `edgeStyle`). Viewers may ignore them.                                                                                                                         |
+| `x-*`                               | Extension keys, allowed at the top level and in `settings`. Tools preserve them; **relvista** reads only its own `x-relvista-view-settings`.                                                               |
 
 Everything else is rejected, so typos show up as errors.
 
@@ -83,6 +88,28 @@ entries merged over it, field by field. A named view therefore stores only what 
 entries may omit `x`/`y` (for example only `collapsed`), and then a later move in `"*"` is inherited.
 In `"*"` every node entry needs `x` and `y`. A node that only a named view mentions, without a
 position, is placed by auto-layout. The viewport comes from the named view when it has one.
+
+### Detail level per view
+
+`settings.detailLevel` applies to every view. A named view can have its own level under
+`settings["x-relvista-view-settings"]`:
+
+```json
+"settings": {
+  "detailLevel": "keys",
+  "x-relvista-view-settings": { "billing": { "detailLevel": "names" } }
+}
+```
+
+Here `billing` shows table names only and every other view shows keys. In the editor, the detail
+switch writes to the open view: in a named view it stores that view's level (picking the
+diagram-wide level removes it again), in "All tables" it sets `settings.detailLevel`. Renaming or
+deleting a view in the editor moves or drops its entry. Docs diagrams with `view=` start at the
+view's level; `detail=` and the toolbar still override it.
+
+It is an extension key, so **relvista** 1.0 loads these files and keeps the key as is; 1.0 just shows
+every view at `settings.detailLevel`. An entry relvista cannot read (a misspelt level, a setting
+from a later version) is ignored and kept, never an error.
 
 ## Stable ids
 

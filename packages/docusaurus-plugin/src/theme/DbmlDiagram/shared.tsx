@@ -435,7 +435,8 @@ export function ClientDiagram(props: ClientDiagramProps): ReactNode {
         height={height}
         title={title}
         colorMode={colorMode}
-        detailLevel={detailLevel ?? parsedLayout?.settings?.detailLevel ?? config.detailLevel}
+        {...(detailLevel ? { detailLevel } : {})}
+        defaultDetailLevel={config.detailLevel}
         toolbar={items}
         editorUrl={editor}
         minimap={minimapFor(height)}

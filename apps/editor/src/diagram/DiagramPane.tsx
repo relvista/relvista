@@ -267,7 +267,7 @@ export function DiagramPane(): ReactElement {
   useLongPressMenu(root);
 
   // --- what is drawn -------------------------------------------------------------------------
-  const detail = shownDetail(layout, detailOverride);
+  const detail = shownDetail(layout, detailOverride, view);
   const compareResult = compare?.result ?? null;
   const displayModel = useMemo(
     () => (compareResult ? mergedForView(compareResult.merged, view) : null),
