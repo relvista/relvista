@@ -30,8 +30,6 @@ export interface ViewerState {
   selection: ReadonlySet<string>;
   /** Groups get a header band that can be clicked (and, editable, dragged). */
   groupHandles: boolean;
-  /** Table id → handle ids its refs attach to (only those handles are rendered). */
-  handles: ReadonlyMap<string, ReadonlySet<string>>;
   /** Node kinds drawn with resize handles. */
   resizable: ResizeKinds;
   /** Resize gestures of a node (the canvas commits one 'resize' at the end). */
@@ -51,7 +49,6 @@ export const ViewerContext = createContext<ViewerState>({
   decorations: null,
   selection: new Set(),
   groupHandles: false,
-  handles: new Map(),
   resizable: false,
   edgeEvents: false,
 });

@@ -22,6 +22,8 @@ export type TableFlowNode = Node<
     h: number;
     /** The node's own detail level (a saved collapsed table), else the viewer's. */
     detail?: DetailLevel;
+    /** Handle ids its refs attach to (only those handles are rendered). */
+    handles: ReadonlySet<string>;
   },
   'rvTable'
 >;
@@ -35,6 +37,8 @@ export type CollapsedGroupFlowNode = Node<
     h: number;
     /** Titles of the visible member tables (tooltip and "N tables"). */
     memberNames: readonly string[];
+    /** Handle ids the refs of its members attach to. */
+    handles: ReadonlySet<string>;
   },
   'rvCollapsedGroup'
 >;
@@ -54,8 +58,13 @@ const HIDDEN_HANDLE = {
   pointerEvents: 'none',
 } as const;
 
-function RowHandles({ ids }: { ids: ReadonlySet<string> | undefined }): ReactElement | null {
-  if (!ids || ids.size === 0) return null;
+// Memoised: the canvas keeps a node's handle set while its refs attach to the same rows.
+const RowHandles = memo(function RowHandles({
+  ids,
+}: {
+  ids: ReadonlySet<string>;
+}): ReactElement | null {
+  if (ids.size === 0) return null;
   return (
     <>
       {Array.from(ids).map((id) => {
@@ -74,7 +83,7 @@ function RowHandles({ ids }: { ids: ReadonlySet<string> | undefined }): ReactEle
       })}
     </>
   );
-}
+});
 
 /** `rv-node` classes shared by every node: kind, details card, selection, highlight ring. */
 function nodeClass(kind: string, id: string, v: ViewerState): string {
@@ -154,7 +163,7 @@ export const TableNode = memo<NodeProps<TableFlowNode>>(function TableNode({
           badge={badgeOf(v.decorations, id)}
         />
       </svg>
-      <RowHandles ids={v.handles.get(id)} />
+      <RowHandles ids={data.handles} />
     </div>
   );
 });
@@ -235,7 +244,7 @@ export const CollapsedGroupNode = memo<NodeProps<CollapsedGroupFlowNode>>(
             badge={badgeOf(v.decorations, id)}
           />
         </svg>
-        <RowHandles ids={v.handles.get(id)} />
+        <RowHandles ids={data.handles} />
       </div>
     );
   },
