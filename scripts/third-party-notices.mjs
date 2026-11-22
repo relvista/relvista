@@ -243,7 +243,8 @@ const packages = [...byId.values()]
   .sort((a, b) => a.name.localeCompare(b.name, 'en') || a.version.localeCompare(b.version, 'en'));
 
 // --- every `@license` banner in the shipped JavaScript names a listed package -----------------
-const SPDX_ONLY = /^(MIT|ISC|BSD|Apache|MPL|0BSD)\b/;
+// OFL: the fonts the PDF export embeds (listed under Fonts below).
+const SPDX_ONLY = /^(MIT|ISC|BSD|Apache|MPL|0BSD|OFL)\b/;
 // Banners whose first word is prose, not a package name: jsPDF bundles Adobe's font metrics
 // ("@license Copyright (c) 2008, Adobe …") and an RGBColor parser ("@license Use it if you like
 // it"); both are inside the jspdf package, which the notices list.
@@ -345,6 +346,22 @@ out.push(
   `The **relvista** wordmark in the logo (on the docs site and in the editor) is drawn from the Manrope typeface, converted to outlines. The docs site also loads Manrope from Google Fonts for its headings. Manrope is ${code('Copyright 2018 The Manrope Project Authors')} ([github.com/googlefonts/manrope](https://github.com/googlefonts/manrope)) and licensed under the SIL Open Font License 1.1:`,
   '',
   fence(lf(readFileSync(OFL, 'utf8'))),
+  '',
+);
+
+// The PDF export (@relvista/renderer) embeds font subsets for text outside WinAnsi; both sites
+// ship them as lazily loaded chunks. Their licences are kept in the renderer's fonts directory.
+const PDF_FONTS = join(repoRoot, 'packages/renderer/src/export/pdf/fonts/LICENSES.md');
+if (!existsSync(PDF_FONTS)) fail('packages/renderer/src/export/pdf/fonts/LICENSES.md is missing.');
+const apache = /## Apache License 2\.0[^\n]*\n+```text\n([\s\S]*?)\n```/.exec(
+  readFileSync(PDF_FONTS, 'utf8'),
+);
+if (!apache)
+  fail('no Apache License 2.0 text in packages/renderer/src/export/pdf/fonts/LICENSES.md');
+out.push(
+  `The PDF export (editor and docs site) draws text outside WinAnsi (Greek, Cyrillic, CJK) with font subsets it loads only when a PDF needs them: Noto Sans Regular and Bold, ${code('Copyright 2022 The Noto Project Authors')} ([github.com/notofonts/latin-greek-cyrillic](https://github.com/notofonts/latin-greek-cyrillic)), licensed under the SIL Open Font License 1.1 (the text above), and Droid Sans Fallback, ${code('Digitized data copyright Google Corporation (c) 2006')}; ${code('Copyright (C) 2008 The Android Open Source Project')} ([android.googlesource.com](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android10-release/data/fonts/)), licensed under the Apache License 2.0. relvista modified both (subset, unhinted, the CJK glyphs merged with Noto Sans into one font); details in [packages/renderer/src/export/pdf/fonts/LICENSES.md](${REPO}/blob/main/packages/renderer/src/export/pdf/fonts/LICENSES.md). Apache License 2.0:`,
+  '',
+  fence(lf(apache[1])),
   '',
 );
 
