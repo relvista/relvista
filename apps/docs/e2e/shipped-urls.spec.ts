@@ -4,6 +4,7 @@
 // schema ids as exact strings (LEGACY_SCHEMA_IDS): files written with them stay valid, and docs may
 // name them as such.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
@@ -49,7 +50,7 @@ test('no shipped file names a pre-move host', () => {
       `packages/${p}/README.md`,
     ]),
     'packages/core/layout.schema.json',
-  ].map((f) => (f.startsWith('/') ? f : `${repoRoot}${f}`));
+  ].map((f) => (isAbsolute(f) ? f : `${repoRoot}${f}`));
   expect(shipped.length).toBeGreaterThan(100);
   const hits = shipped.filter(
     (f) =>
