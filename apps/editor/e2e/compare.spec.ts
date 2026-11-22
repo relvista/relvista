@@ -96,10 +96,19 @@ test('paste an older schema: tones, Changes panel counts as formatDiff, code dif
     page.locator('.ed-diagram .react-flow__node[data-id="public.wishlists"] .rv-node'),
   ).toHaveClass(/rv-highlighted/);
 
-  // Copy summary: Markdown from formatDiff.
+  // Copy summary: Markdown from formatDiff. The text the page wrote is checked, not the system
+  // clipboard: parallel tests share it, and Windows hands it back with CRLF line ends.
+  await page.evaluate(() => {
+    const clipboard = navigator.clipboard;
+    const write = clipboard.writeText.bind(clipboard);
+    clipboard.writeText = (text: string) => {
+      (window as { relvistaCopied?: string }).relvistaCopied = text;
+      return write(text);
+    };
+  });
   await panel.getByRole('button', { name: 'Copy summary' }).click();
   await expect(page.locator('.ed-toast', { hasText: 'Summary copied' })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+  expect(await page.evaluate(() => (window as { relvistaCopied?: string }).relvistaCopied)).toBe(
     formatDiff(diff, { markdown: true }),
   );
 
