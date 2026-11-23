@@ -5,8 +5,9 @@ description: Download a diagram as SVG, PNG or a tiled or per-view PDF, print it
 ---
 
 Every diagram — in the [editor](./editor.md) and in your docs — exports what it shows: the current
-view, the detail level, the colour mode and colours, tables you dragged where you left them, and
-any search, path or [diff](./diff.mdx) tones that are on screen.
+view, the detail level, the colour mode and colours, tables you dragged where you left them (in a
+docs diagram, once you [unlocked](./usage.mdx#frozen-diagrams) it), and any search, path or
+[diff](./diff.mdx) tones that are on screen.
 
 ## SVG and PNG
 

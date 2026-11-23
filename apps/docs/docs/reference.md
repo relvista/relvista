@@ -77,7 +77,8 @@ import '@relvista/renderer/styles.css';
 ```
 
 - [DbmlViewer](/docs/api/renderer/functions/DbmlViewer): the read-only viewer the docs use
-  (toolbar, search, export); [props](/docs/api/renderer/interfaces/DbmlViewerProps).
+  (toolbar, search, export, `frozen` layouts with a lock button);
+  [props](/docs/api/renderer/interfaces/DbmlViewerProps).
 - [DiagramCanvas](/docs/api/renderer/variables/DiagramCanvas): the interactive canvas the editor
   uses, read-only or editable with a controlled layout;
   [props](/docs/api/renderer/interfaces/DiagramCanvasProps) and

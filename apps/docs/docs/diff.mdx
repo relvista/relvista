@@ -71,6 +71,7 @@ import v2 from './schema-v2.dbml';
 | `id`                                     | `string`                         | The diff's [anchor](./exploring.mdx#deep-links) on the page.             |
 | `detailLevel`                            | `'all'` \| `'keys'` \| `'names'` | Start at another detail level.                                           |
 | `ssr`, `palette`, `toolbar`, `className` | as for `DbmlDiagram`             |                                                                          |
+| `frozen`                                 | `boolean`                        | As for `DbmlDiagram` ([frozen diagrams](./usage.mdx#frozen-diagrams)).   |
 
 Renamed tables are recognised when their columns are identical: `sessions` renamed to
 `user_sessions` is one changed table, not one removed and one added. Refs, indexes, checks,
@@ -110,8 +111,8 @@ Table orders {
 ```
 
 The meta string takes the `DbmlDiagram` fence options (`title`, `height`, `view`, `layout`,
-`detail`, `id`, `ssr`, `static`) plus `summary=false`. Only the first `---` line splits the
-fence.
+`detail`, `id`, `ssr`, `frozen`, `static`) plus `summary=false`. Only the first `---` line splits
+the fence.
 
 ## In the page's HTML
 

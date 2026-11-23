@@ -909,6 +909,10 @@ dashes alone on a line) is supported by the MDX `Code` wrapper.
 `@theme/DbmlDiff` and the new `Props` fields (`id`, `ssr`). `configureWebpack`: the jsPDF optional
 dependency aliases (§2) and the `ssr-files` alias (§5.1).
 
+**Since 1.1** ([decision 0007](../decisions/0007-frozen-diagrams.md)): `frozen` (default `true`),
+the `frozen` prop of `DbmlDiagram` / `DbmlDiff` and fence meta `frozen` / `frozen=false`; the
+viewer's `frozen` prop and its `'lock'` toolbar item (after `'fit'`) unlock and re-lock a diagram.
+
 ---
 
 ## 6. Editor (`apps/editor`)
