@@ -257,6 +257,7 @@ export default function DbmlDiff(props: Props): ReactNode {
         toolbar={props.toolbar}
         editorUrl={false}
         palette={props.palette}
+        frozen={props.frozen}
         height={height}
         config={config}
         host={host}

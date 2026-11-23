@@ -52,6 +52,15 @@ export interface DbmlThemeConfig {
    * place. Default `true`; `ssr={false}` / fence meta `ssr=false` turns it off for one diagram.
    */
   ssr: boolean;
+  /**
+   * Show every diagram frozen, as you arranged it (its layout file, or the build-time layout):
+   * readers can pan, zoom, search, highlight, focus and export, but cannot move tables, notes or
+   * groups, nor collapse or expand groups. The toolbar's lock button (`lock`) unlocks a diagram for
+   * the reader, who can then rearrange it; nothing is saved, and locking it again puts everything
+   * back. Default `true`; `false` lets readers drag tables right away, without a lock button (as in
+   * relvista 1.0). The `frozen` prop and fence meta `frozen` / `frozen=false` set it per diagram.
+   */
+  frozen: boolean;
 }
 
 /** Which colours diagrams use: the site's Infima colours, or relvista's own palette. */
@@ -98,5 +107,6 @@ export const DEFAULT_THEME_CONFIG: ThemeConfig = {
     detailLevel: 'all',
     palette: 'site',
     ssr: true,
+    frozen: true,
   },
 };

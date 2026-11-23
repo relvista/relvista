@@ -29,6 +29,7 @@ export default function DbmlFence({ original: Original, ...props }: DbmlFencePro
         layout={meta.layout}
         detailLevel={meta.detailLevel}
         ssr={meta.ssr}
+        frozen={meta.frozen}
         id={meta.id}
         summary={meta.summary}
       />
@@ -44,6 +45,7 @@ export default function DbmlFence({ original: Original, ...props }: DbmlFencePro
       source={meta.source}
       detailLevel={meta.detailLevel}
       ssr={meta.ssr}
+      frozen={meta.frozen}
       id={meta.id}
     />
   );

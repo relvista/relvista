@@ -199,6 +199,15 @@ describe('DbmlDiagram at build time', () => {
     expect(html).not.toContain('relvista-static');
   });
 
+  it('frozen changes nothing in the build-time picture', async () => {
+    const value = example('05-table-groups.dbml');
+    const frozen = await renderToHtml(<DbmlDiagram value={value} title="Groups" />);
+    expect(frozen).toContain('relvista-static');
+    expect(await renderToHtml(<DbmlDiagram value={value} title="Groups" frozen={false} />)).toBe(
+      frozen,
+    );
+  });
+
   it('fences: ssr=false in the meta string turns it off', async () => {
     const fence = (meta: string) => (
       <MDXCode className="language-dbml" metastring={meta}>

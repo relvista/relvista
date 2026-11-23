@@ -336,6 +336,8 @@ export interface ClientDiagramProps {
   toolbar?: ToolbarItem[] | undefined;
   editorUrl?: string | false | undefined;
   palette?: 'site' | 'relvista' | undefined;
+  /** Overrides `config.frozen`. */
+  frozen?: boolean | undefined;
   height: number | string;
   config: DbmlThemeConfig;
   /** Element the site's colours are read in (the diagram's wrapper). */
@@ -444,6 +446,7 @@ export function ClientDiagram(props: ClientDiagramProps): ReactNode {
         defaultDetailLevel={config.detailLevel}
         toolbar={items}
         editorUrl={editor}
+        frozen={props.frozen ?? config.frozen}
         minimap={minimapFor(height)}
         workerUrl={elkWorkerUrl}
         className={sitePalette ? 'relvista-viewer rv-palette-site' : 'relvista-viewer'}

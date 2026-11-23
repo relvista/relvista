@@ -46,6 +46,14 @@ describe('parseDbmlMeta', () => {
     });
   });
 
+  it('reads frozen as a flag: frozen, frozen=false', () => {
+    expect(parseDbmlMeta('frozen')).toEqual({ frozen: true });
+    expect(parseDbmlMeta('frozen=false')).toEqual({ frozen: false });
+    expect(parseDbmlMeta("frozen='no' title=A")).toEqual({ frozen: false, title: 'A' });
+    expect(parseDbmlMeta('frozen=true ssr=false')).toEqual({ frozen: true, ssr: false });
+    expect(parseDbmlMeta('title="A"')).toEqual({ title: 'A' });
+  });
+
   it('handles empty input, false flags and unknown keys', () => {
     expect(parseDbmlMeta(undefined)).toEqual({});
     expect(parseDbmlMeta('')).toEqual({});
@@ -71,6 +79,7 @@ describe('validateThemeConfig', () => {
       detailLevel: 'keys',
       palette: 'relvista',
       ssr: false,
+      frozen: false,
     };
     expect(validateThemeConfig({ validate, themeConfig: { dbml } as never })).toEqual({ dbml });
   });
@@ -117,6 +126,22 @@ describe('validateThemeConfig', () => {
     expect(() =>
       validateThemeConfig({ validate, themeConfig: { dbml: { palette: 'infima' } } as never }),
     ).toThrow();
+  });
+
+  it('freezes diagrams by default; frozen accepts false, nothing but booleans', () => {
+    expect(DEFAULT_THEME_CONFIG.dbml.frozen).toBe(true);
+    expect(validateThemeConfig({ validate, themeConfig: {} as never }).dbml.frozen).toBe(true);
+    const off = validateThemeConfig({
+      validate,
+      themeConfig: { dbml: { frozen: false } } as never,
+    });
+    expect(off.dbml).toEqual({ ...DEFAULT_THEME_CONFIG.dbml, frozen: false });
+    for (const frozen of ['no', 1, null])
+      expect(() =>
+        validateThemeConfig({ validate, themeConfig: { dbml: { frozen } } as never }),
+      ).toThrow();
+    // Its toolbar item, right after Fit.
+    expect(TOOLBAR_ITEMS.indexOf('lock')).toBe(TOOLBAR_ITEMS.indexOf('fit') + 1);
   });
 
   it("follows the site's colours by default", () => {

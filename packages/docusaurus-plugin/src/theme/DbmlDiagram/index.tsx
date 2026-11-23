@@ -96,6 +96,7 @@ export default function DbmlDiagram(props: Props): ReactNode {
         toolbar={props.toolbar}
         editorUrl={props.editorUrl}
         palette={props.palette}
+        frozen={props.frozen}
         height={height}
         config={config}
         host={host}
