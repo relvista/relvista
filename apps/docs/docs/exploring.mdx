@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1.7
 title: Exploring diagrams
-description: Search a diagram, find the relationship path between two tables, change the detail level, focus on related tables, and link straight to any of it.
+description: Search a diagram, find the relationship path between two tables, change the detail level, focus on related tables, unlock it to move tables, and link straight to any of it.
 ---
 
 import DbmlDiagram from '@theme/DbmlDiagram';
@@ -113,6 +113,9 @@ the layout does not move when you switch.
 
 To start a diagram at another level, add `detail=keys` (or `names`) to a fence, pass
 `detailLevel="keys"` to the component, or set `themeConfig.dbml.detailLevel` for the whole site.
+A layout file can also give each view its own level
+([detail level per view](./layout-file.md#detail-level-per-view)); a diagram with `view=` then starts at
+it, and switching views in the toolbar shows each view at its saved level.
 Try <a href="#shop&detail=names" data-noBrokenLinkCheck>the shop diagram with names only</a>.
 
 ## Focus on related tables
@@ -125,6 +128,15 @@ saved positions do not change, and tables cannot be dragged until you leave. The
 **✕** to leave; <kbd>Esc</kbd> leaves too.
 
 Try <a href="#shop&table=orders&hops=1" data-noBrokenLinkCheck>orders and its neighbours</a>.
+
+## Moving tables
+
+Docs diagrams are usually [frozen](./usage.mdx#frozen-diagrams): they keep the arrangement their
+author chose, so dragging a table pans the diagram instead, and groups stay as they are. To
+rearrange one for yourself, press the **lock** button in the toolbar (**Unlock layout**): tables,
+notes and groups then drag, and double-clicking a group's header collapses it into one card
+(double-click the card to expand it again). Nothing is saved. Press the button again
+(**Lock layout**) to put everything back where the author had it; the view stays where it is.
 
 ## Deep links
 

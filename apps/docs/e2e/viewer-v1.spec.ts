@@ -224,6 +224,11 @@ test.describe('layout engine in the browser (§7)', () => {
     expect(await clientNavigate(page, '01-minimal')).toEqual([]);
   });
 
+  test('neither does one whose refs join AUTO_DAGRE_MAX_NODES (4) tables', async ({ page }) => {
+    // 06-header-colors: one connected component of 4 tables and a lone table.
+    expect(await clientNavigate(page, '06-header-colors')).toEqual([]);
+  });
+
   test('control: a bigger diagram drawn after a client navigation does load ELK', async ({
     page,
   }) => {

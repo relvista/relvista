@@ -133,8 +133,9 @@ test('no page scrolls sideways on a phone', async ({ page }) => {
 test('usage page: fences, src, layout files and source tabs all render', async ({ page }) => {
   await page.goto('docs/usage');
   const diagrams = page.locator('.relvista-diagram');
-  await expect(diagrams).toHaveCount(3);
-  for (let i = 0; i < 3; i++) {
+  // The fourth is the frozen=false fence (frozen.spec.ts).
+  await expect(diagrams).toHaveCount(4);
+  for (let i = 0; i < 4; i++) {
     await diagrams.nth(i).scrollIntoViewIfNeeded();
     await settled(diagrams.nth(i));
   }

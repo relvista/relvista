@@ -5,8 +5,9 @@ description: Download a diagram as SVG, PNG or a tiled or per-view PDF, print it
 ---
 
 Every diagram — in the [editor](./editor.md) and in your docs — exports what it shows: the current
-view, the detail level, the colour mode and colours, tables you dragged where you left them, and
-any search, path or [diff](./diff.mdx) tones that are on screen.
+view, the detail level, the colour mode and colours, tables you dragged where you left them (in a
+docs diagram, once you [unlocked](./usage.mdx#frozen-diagrams) it), and any search, path or
+[diff](./diff.mdx) tones that are on screen.
 
 ## SVG and PNG
 
@@ -41,10 +42,19 @@ browser; the library loads only when you open the dialog.
 **Scale** from 50 to 200 % (tiled), overlap, cut marks and page labels, overview page, skip empty
 pages.
 
-A page whose diagram text uses characters the standard PDF fonts lack (Greek, Cyrillic, CJK,
-emoji) is embedded as a high-resolution image instead (each tile rendered on its own at three
-times the print size): it prints correctly, but its text cannot be
-selected.
+Text in Latin letters beyond Western European ones (Polish, Czech, Turkish, Vietnamese…), Greek,
+Cyrillic, Chinese or Japanese (ideographs and kana) stays text you can select and search: the PDF
+embeds the glyphs it uses from Noto Sans or Droid Sans Fallback. The fonts load
+only when a diagram needs them (about 0.2 MB, or 2 MB for CJK), and a page typically grows by
+30–90 KB. CJK text is drawn in one weight, so CJK table names are not bold.
+
+A page whose text uses characters these fonts lack (Arabic, Hebrew, Korean Hangul, Indic scripts,
+emoji, rare CJK ideographs, accents that have no precomposed letter) is embedded as a
+high-resolution image instead (each tile rendered on its own at three times the print size): it
+prints correctly, but its text cannot be selected. The dialog warns before you export when table or
+column names need it; other text (types, notes, group names) is checked as the PDF is written.
+Arabic and Hebrew stay images because the PDF writer cannot lay out right-to-left text or join
+Arabic letters.
 
 ## Print
 

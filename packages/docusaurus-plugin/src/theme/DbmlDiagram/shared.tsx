@@ -33,11 +33,15 @@ import { ssrPayload } from './StaticDiagram.js';
 import elkWorkerUrl from 'elkjs/lib/elk-worker.min.js?relvista-worker';
 import styles from './styles.module.css';
 
-// The viewer (React Flow, the DBML parser, ELK) loads only on pages that show a diagram.
+// The viewer (React Flow, the DBML parser) loads only on pages that show a diagram. Every import
+// of the renderer and core destructures the exports it uses, so webpack leaves the rest of the
+// package out of the chunk (export and share code the viewer loads on use, if ever).
 const LiveViewer = lazy(() =>
-  import(/* webpackChunkName: "relvista-viewer" */ '@relvista/renderer').then((r) => ({
-    default: liveViewer(r),
-  })),
+  import(/* webpackChunkName: "relvista-viewer" */ '@relvista/renderer').then(
+    ({ DbmlViewer, formatAnchoredTarget, parseAnchoredTarget }) => ({
+      default: liveViewer({ DbmlViewer, formatAnchoredTarget, parseAnchoredTarget }),
+    }),
+  ),
 );
 
 /** `themeConfig.dbml` with its defaults. */
@@ -80,9 +84,10 @@ function useSiteAccents(
     let alive = true;
     // The colour helpers come with the viewer chunk, which is loading anyway.
     import(/* webpackChunkName: "relvista-viewer" */ '@relvista/renderer')
-      .then((r) => {
+      .then(({ resolveColors, parseHex, contrastRatio, withContrast, toHex, mix }) => {
         const el = host.current;
-        if (alive && el) setAccents({ mode, value: siteAccents(el, mode, r) });
+        const helpers = { resolveColors, parseHex, contrastRatio, withContrast, toHex, mix };
+        if (alive && el) setAccents({ mode, value: siteAccents(el, mode, helpers) });
       })
       // Without them the site palette keeps its CSS fallbacks (primary-darkest, primary).
       .catch((err: unknown) => console.error('relvista: could not read the site colours', err));
@@ -331,6 +336,8 @@ export interface ClientDiagramProps {
   toolbar?: ToolbarItem[] | undefined;
   editorUrl?: string | false | undefined;
   palette?: 'site' | 'relvista' | undefined;
+  /** Overrides `config.frozen`. */
+  frozen?: boolean | undefined;
   height: number | string;
   config: DbmlThemeConfig;
   /** Element the site's colours are read in (the diagram's wrapper). */
@@ -435,9 +442,11 @@ export function ClientDiagram(props: ClientDiagramProps): ReactNode {
         height={height}
         title={title}
         colorMode={colorMode}
-        detailLevel={detailLevel ?? parsedLayout?.settings?.detailLevel ?? config.detailLevel}
+        {...(detailLevel ? { detailLevel } : {})}
+        defaultDetailLevel={config.detailLevel}
         toolbar={items}
         editorUrl={editor}
+        frozen={props.frozen ?? config.frozen}
         minimap={minimapFor(height)}
         workerUrl={elkWorkerUrl}
         className={sitePalette ? 'relvista-viewer rv-palette-site' : 'relvista-viewer'}

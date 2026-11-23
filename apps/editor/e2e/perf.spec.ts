@@ -6,8 +6,18 @@
  * - keystroke → diagram on a generated 300-table schema (≈ 90 KB, seeded): ≤ 600 ms, every
  *   compile in the compile worker. Main-thread long tasks while typing are logged with their
  *   offset from the keydown; the §7 goal "no task > 50 ms" is asserted only as a loose ceiling:
- *   what remains on the main thread there is the language service's completion parse (~+80 ms)
- *   and the canvas re-render after the result, not the compile.
+ *   what remains on the main thread there is the language service's completion parse (~+80 ms),
+ *   not the compile;
+ * - a generated 600-table schema (≈ 186 KB, same generator): the open (drop → final layout,
+ *   timed in the page) ≤ 4 s; keystroke → diagram ≤ 800 ms, compiles in the worker; dragging a
+ *   table: no task over 100 ms, neither per pointer move nor when it is let go (the full re-route
+ *   and the 'move' layout change). Typing long tasks are only logged: at this size the completion
+ *   parse alone (@dbml/parse's language service, ~180 ms) is one. Most of a drag move is Chrome's
+ *   layerization of the 600 cards and 599 edge SVGs (~45 ms), not relvista's code.
+ *
+ * The perf project records traces without DOM snapshots (playwright.config.ts), and the waits of
+ * the 600-table test poll page flags instead of locator `expect`s: both would otherwise put
+ * Playwright's own walks over the page's DOM on its main thread, inside the measured times.
  *
  * A keystroke renames a table (`Table zqprobe {` → `zqprobex`); the time runs from the keydown to
  * the renamed table's title in the canvas DOM. Compile times come from the scheduler's
@@ -38,7 +48,7 @@ function rng(seed: number): () => number {
   };
 }
 
-/** A 300-table schema with notes, indexes and about one ref per table (seeded, ≈ 90 KB). */
+/** `tables` tables with notes, indexes and about one ref per table (seeded; 300 ≈ 90 KB, 600 ≈ 186 KB). */
 function bigSchema(tables = 300, seed = 20261121): string {
   const r = rng(seed);
   const types = [
@@ -219,6 +229,151 @@ async function measure(page: Page, rounds: number): Promise<number[]> {
 
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
 const fmt = (xs: number[]) => xs.map((x) => x.toFixed(1)).join(', ');
+const pct = (xs: number[], p: number) =>
+  [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * p))]!;
+const fmtFrames = (xs: number[]) =>
+  `${xs.length} frames, median ${median(xs).toFixed(1)}, p95 ${pct(xs, 0.95).toFixed(1)}, max ${Math.max(...xs).toFixed(1)} ms`;
+
+/**
+ * Drops `text` as a file and times the open in the page, from the drop event: the first node
+ * drawn, then the final layout (`data-rv-layout="done"` with `nodes` nodes drawn). The wait polls
+ * a page flag rather than an `expect`: while a locator `expect` fails, Playwright renders an aria
+ * snapshot of the whole page on every retry, which with 600 tables blocks the main thread for
+ * about half a second each time.
+ */
+async function timedOpen(
+  page: Page,
+  name: string,
+  text: string,
+  nodes: number,
+): Promise<{ firstMs: number; layoutMs: number }> {
+  await page.evaluate((count) => {
+    const w = window as unknown as { __open: { t0: number; first: number; done: number } };
+    const o = (w.__open = { t0: -1, first: -1, done: -1 });
+    window.addEventListener('drop', () => (o.t0 = performance.now()), {
+      capture: true,
+      once: true,
+    });
+    const obs = new MutationObserver(() => {
+      if (o.t0 < 0) return;
+      const drawn = document.querySelectorAll('.rv-canvas .react-flow__node').length;
+      const now = performance.now() - o.t0;
+      if (o.first < 0 && drawn > 0) o.first = now;
+      if (drawn === count && document.querySelector('.rv-canvas[data-rv-layout="done"]')) {
+        o.done = now;
+        obs.disconnect();
+      }
+    });
+    obs.observe(document.querySelector('.ed-app')!, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-rv-layout'],
+    });
+  }, nodes);
+  await dropText(page, name, text);
+  await page.waitForFunction(
+    () => (window as unknown as { __open: { done: number } }).__open.done >= 0,
+    null,
+    { timeout: 120_000, polling: 100 },
+  );
+  return page.evaluate(() => {
+    const o = (window as unknown as { __open: { first: number; done: number } }).__open;
+    return { firstMs: o.first, layoutMs: o.done };
+  });
+}
+
+/** What `framesDuring` records in the page. */
+interface Recording {
+  frames: number[];
+  tasks: number[];
+  on: boolean;
+  obs: PerformanceObserver;
+}
+
+/**
+ * Frame intervals (requestAnimationFrame deltas) and main-thread long tasks (ms) while `run`
+ * drives the page.
+ */
+async function framesDuring(
+  page: Page,
+  run: () => Promise<void>,
+): Promise<{ frames: number[]; tasks: number[] }> {
+  await page.evaluate(() => {
+    const frames: number[] = [];
+    const tasks: number[] = [];
+    const obs = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) tasks.push(e.duration);
+    });
+    const rec: Recording = { frames, tasks, on: true, obs };
+    (window as unknown as { __rec: Recording }).__rec = rec;
+    obs.observe({ type: 'longtask' });
+    let last = performance.now();
+    const tick = (t: number) => {
+      rec.frames.push(t - last);
+      last = t;
+      if (rec.on) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await run();
+  return page.evaluate(() => {
+    const rec = (window as unknown as { __rec: Recording }).__rec;
+    rec.on = false;
+    for (const e of rec.obs.takeRecords()) rec.tasks.push(e.duration);
+    rec.obs.disconnect();
+    return { frames: rec.frames.slice(1), tasks: rec.tasks };
+  });
+}
+
+/** The table nearest the canvas centre whose header is in view and not covered (its id). */
+async function tableNearCentre(page: Page): Promise<string> {
+  const id = await page.evaluate(() => {
+    const r = document.querySelector('.rv-canvas')!.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let best: { id: string; d: number } | null = null;
+    for (const n of document.querySelectorAll<HTMLElement>(
+      '.rv-canvas .react-flow__node-rvTable',
+    )) {
+      const b = n.getBoundingClientRect();
+      if (b.left < r.left || b.right > r.right - 200 || b.top < r.top || b.bottom > r.bottom - 100)
+        continue;
+      const x = b.left + Math.min(30, b.width / 2);
+      const y = b.top + 8;
+      if (document.elementFromPoint(x, y)?.closest('.react-flow__node') !== n) continue;
+      const d = Math.hypot(x - cx, y - cy);
+      if (!best || d < best.d) best = { id: n.dataset.id!, d };
+    }
+    return best?.id ?? null;
+  });
+  if (!id) throw new Error('no table to drag in view');
+  return id;
+}
+
+/**
+ * Drags table `id` by its header, `steps` pointer moves of (4, 2) px. Returns the frames and long
+ * tasks of the drag, and the long tasks of the drop (the full re-route and the 'move' layout
+ * change), recorded until 600 ms after the button is let go.
+ */
+async function timedDrag(
+  page: Page,
+  id: string,
+  steps: number,
+): Promise<{ drag: { frames: number[]; tasks: number[] }; drop: number[] }> {
+  const b = (await page.locator(`.rv-canvas .react-flow__node[data-id="${id}"]`).boundingBox())!;
+  const at = { x: b.x + Math.min(30, b.width / 2), y: b.y + 8 };
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  const drag = await framesDuring(page, async () => {
+    for (let i = 1; i <= steps; i++) await page.mouse.move(at.x + i * 4, at.y + i * 2);
+  });
+  const { tasks: drop } = await framesDuring(page, async () => {
+    await page.mouse.up();
+    await page.waitForTimeout(600);
+  });
+  return { drag, drop };
+}
 
 test.describe.configure({ mode: 'serial' });
 
@@ -275,6 +430,53 @@ test('keystroke → diagram on a 300-table schema ≤ 600 ms, compiles off the m
   expect(median(times)).toBeLessThanOrEqual(600 * SLACK);
   // Typing itself (keystrokes, no compile on the main thread) stays responsive.
   expect(Math.max(0, ...tasks.map((t) => t.ms))).toBeLessThanOrEqual(CI ? 250 : 200);
+});
+
+test('a 600-table schema: open ≤ 4 s, keystroke → diagram ≤ 800 ms, drag tasks ≤ 100 ms', async ({
+  page,
+}) => {
+  test.setTimeout(420_000);
+  await openEditor(page);
+  await expect(page.locator('.rv-canvas .react-flow__node')).toHaveCount(0);
+  const schema = bigSchema(600);
+  console.log(`[perf] generated schema: ${(schema.length / 1024).toFixed(1)} KB, 600 tables`);
+  await compileMarks(page);
+  const open = await timedOpen(page, 'generated.dbml', schema, 600);
+  const openCompiles = await compileMarks(page);
+  await diagramReady(page);
+
+  await addProbe(page);
+  await measure(page, 2); // warm-up
+  await recordLongTasks(page);
+  await compileMarks(page);
+  const times = await measure(page, 6);
+  const tasks = await longTasks(page);
+  const compiles = await compileMarks(page);
+  await diagramReady(page);
+
+  // The same table twice: the first drag also selects it and lifts it above the others.
+  const table = await tableNearCentre(page);
+  const first = await timedDrag(page, table, 10);
+  await diagramReady(page);
+  const { drag, drop } = await timedDrag(page, table, 40);
+
+  const ms = (xs: number[]) => xs.map((x) => x.toFixed(0)).join(', ');
+  console.log(
+    `[perf] 600 tables open ms: first table ${open.firstMs.toFixed(0)}, layout done ${open.layoutMs.toFixed(0)}; compile ${fmtCompiles(openCompiles)}`,
+  );
+  console.log(`[perf] 600 tables compiles: ${fmtCompiles(compiles)}`);
+  console.log(
+    `[perf] 600 tables keystroke→diagram ms: median ${median(times).toFixed(1)}, max ${Math.max(...times).toFixed(1)} [${fmt(times)}]; long tasks while typing: ${tasks.length} [${fmtTasks(tasks)}]`,
+  );
+  console.log(
+    `[perf] 600 tables drag: ${fmtFrames(drag.frames)}; long tasks ${drag.tasks.length} [${ms(drag.tasks)}]; drop long tasks [${ms(drop)}]; first drag (selects the table) long tasks [${ms(first.drag.tasks)}], drop [${ms(first.drop)}]`,
+  );
+  expect(compiles.length).toBeGreaterThan(0);
+  expect(compiles.every((c) => c.mode === 'worker')).toBe(true);
+  expect(open.layoutMs).toBeLessThanOrEqual(4000 * SLACK);
+  expect(median(times)).toBeLessThanOrEqual(800 * SLACK);
+  expect(Math.max(0, ...drag.tasks)).toBeLessThanOrEqual(100 * SLACK);
+  expect(Math.max(0, ...drop)).toBeLessThanOrEqual(100 * SLACK);
 });
 
 test('typing in a small schema stays on the main thread', async ({ page }) => {

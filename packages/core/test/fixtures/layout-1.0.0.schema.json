@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relvista.org/schemas/layout-1.json",
+  "title": "relvista layout file",
+  "description": "Sidecar file (schema.dbml.layout.json) holding everything DBML cannot store: node positions and sizes, per-view viewports, edge routing and display settings.",
+  "type": "object",
+  "required": ["version", "views"],
+  "properties": {
+    "$schema": {
+      "description": "URI of this JSON Schema, for editor tooling. Ignored by relvista.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Format version. Only 1 exists.",
+      "const": 1
+    },
+    "views": {
+      "description": "Layouts keyed by view name. The key \"*\" is the default view; named views inherit from it and store only what differs.",
+      "type": "object",
+      "propertyNames": { "minLength": 1 },
+      "properties": { "*": { "$ref": "#/$defs/view" } },
+      "additionalProperties": { "$ref": "#/$defs/viewOverride" }
+    },
+    "settings": { "$ref": "#/$defs/settings" }
+  },
+  "patternProperties": {
+    "^x-": { "description": "Extension data for third-party tools. Preserved, never interpreted." }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nodeId": {
+      "description": "Stable node id: \"schema.table\" for tables (schema always explicit, \"public\" by default), \"note:<name>\" for sticky notes, \"group:<name>\" for table groups. A table-id segment that is empty, contains . \" \\ : , ( or ), or starts with < > - or ?, is double-quoted with \" and \\ backslash-escaped: a.\"b.c\".",
+      "type": "string",
+      "pattern": "^(note:.+|group:.+|(?:[^.\"\\\\:,()<>?-][^.\"\\\\:,()]*|\"(?:[^\"\\\\]|\\\\.)*\")\\.(?:[^.\"\\\\:,()<>?-][^.\"\\\\:,()]*|\"(?:[^\"\\\\]|\\\\.)*\"))$"
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "node": {
+      "description": "Placement of one node in the default view. x/y is the top-left corner in diagram coordinates.",
+      "type": "object",
+      "required": ["x", "y"],
+      "$ref": "#/$defs/nodeFields"
+    },
+    "nodeOverride": {
+      "description": "Node entry of a named view: only the fields that differ from the default view.",
+      "$ref": "#/$defs/nodeFields"
+    },
+    "nodeFields": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": {
+          "description": "Width override. Omit to use the measured width.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "h": {
+          "description": "Height override. Omit to use the measured height.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "collapsed": {
+          "description": "Show only the header (tables) or the title (groups).",
+          "type": "boolean"
+        },
+        "pinned": { "description": "Auto-layout must not move this node.", "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "viewport": {
+      "description": "Camera: x/y is the diagram point at the top-left of the canvas.",
+      "type": "object",
+      "required": ["x", "y", "zoom"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "zoom": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "side": {
+      "type": "string",
+      "enum": ["top", "right", "bottom", "left"]
+    },
+    "edge": {
+      "description": "Manual routing of one relationship edge.",
+      "type": "object",
+      "properties": {
+        "waypoints": {
+          "description": "Intermediate bend points in diagram coordinates, from source to target.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/point" }
+        },
+        "sourceSide": { "$ref": "#/$defs/side" },
+        "targetSide": { "$ref": "#/$defs/side" }
+      },
+      "additionalProperties": false
+    },
+    "view": {
+      "type": "object",
+      "required": ["nodes"],
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/nodeId" },
+          "additionalProperties": { "$ref": "#/$defs/node" }
+        },
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "edges": { "$ref": "#/$defs/edges" }
+      },
+      "additionalProperties": false
+    },
+    "viewOverride": {
+      "description": "A named view: entries merge field by field over the default view.",
+      "type": "object",
+      "required": ["nodes"],
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/nodeId" },
+          "additionalProperties": { "$ref": "#/$defs/nodeOverride" }
+        },
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "edges": { "$ref": "#/$defs/edges" }
+      },
+      "additionalProperties": false
+    },
+    "edges": {
+      "description": "Edge routing keyed by the ref id from the relvista diagram model.",
+      "type": "object",
+      "propertyNames": { "pattern": "^ref:." },
+      "additionalProperties": { "$ref": "#/$defs/edge" }
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "detailLevel": {
+          "description": "Which columns tables show: all columns, key columns only, or table names only.",
+          "type": "string",
+          "enum": ["all", "keys", "names"]
+        },
+        "theme": {
+          "description": "Rendering hints. Viewers may ignore them.",
+          "type": "object",
+          "properties": {
+            "colorScheme": { "type": "string", "enum": ["light", "dark", "auto"] },
+            "showGrid": { "type": "boolean" },
+            "edgeStyle": { "type": "string", "enum": ["orthogonal", "curved", "straight"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "patternProperties": {
+        "^x-": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -198,6 +198,7 @@ describe('DbmlViewer v1: toolbar', () => {
       'detail',
       'zoom',
       'fit',
+      'lock',
       'fullscreen',
       'export',
       'print',
@@ -208,6 +209,8 @@ describe('DbmlViewer v1: toolbar', () => {
     expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Detail level' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Copy link to this diagram' })).toBeNull();
+    // Not frozen: nothing to unlock (test/frozen.test.tsx).
+    expect(screen.queryByRole('button', { name: 'Unlock layout' })).toBeNull();
   });
 
   it('moves between buttons with the arrow keys and opens search with / and Mod+K', async () => {
@@ -268,6 +271,69 @@ describe('DbmlViewer v1: toolbar', () => {
       (c) => c.getAttribute('data-rv-column'),
     );
     expect(cols).toEqual(['id', 'user_id']);
+  });
+});
+
+describe('DbmlViewer: per-view detail level', () => {
+  /** Diagram-wide 'keys'; the view only_blog saves 'names'. */
+  const PER_VIEW: Layout = {
+    ...emptyLayout(),
+    settings: {
+      detailLevel: 'keys',
+      'x-relvista-view-settings': { only_blog: { detailLevel: 'names' } },
+    },
+  };
+  const columns = (root: ParentNode, id: string) =>
+    Array.from(node(root, id).querySelectorAll('.rv-column')).map((c) =>
+      c.getAttribute('data-rv-column'),
+    );
+  async function pickView(name: string) {
+    fireEvent.change(screen.getByLabelText('Diagram view'), { target: { value: name } });
+    await flush(200);
+  }
+  async function pickDetail(label: 'Names' | 'Keys' | 'All') {
+    fireEvent.click(screen.getByRole('button', { name: 'Detail level' }));
+    const menu = screen.getByRole('menu', { name: 'Detail level' });
+    const item = within(menu)
+      .getAllByRole('menuitemradio')
+      .find((i) => i.textContent?.startsWith(label))!;
+    fireEvent.click(item);
+    await flush(100);
+  }
+
+  it('shows a view at its saved level, and the default view at settings.detailLevel', async () => {
+    const { container } = await viewer({ layout: PER_VIEW, view: 'only_blog' });
+    expect(columns(container, 'public.posts')).toEqual([]);
+    await pickView('*');
+    expect(columns(container, 'public.posts')).toEqual(['id', 'user_id']);
+    await pickView('only_blog');
+    expect(columns(container, 'public.posts')).toEqual([]);
+  });
+
+  it('the toolbar overrides it until a view with another saved level opens', async () => {
+    const { container } = await viewer({ layout: PER_VIEW, view: 'only_blog' });
+    await pickDetail('All');
+    expect(columns(container, 'public.posts')).toEqual(['id', 'user_id', 'title']);
+    await pickView('*');
+    expect(columns(container, 'public.posts')).toEqual(['id', 'user_id']);
+  });
+
+  it('keeps the toolbar choice across views that save the same level (as in 1.0)', async () => {
+    const { container } = await viewer({ layout: layoutWith({}), view: 'only_blog' });
+    await pickDetail('Keys');
+    await pickView('*');
+    expect(columns(container, 'public.posts')).toEqual(['id', 'user_id']);
+  });
+
+  it('the detailLevel prop overrides every view; defaultDetailLevel fills in', async () => {
+    const a = await viewer({ layout: PER_VIEW, view: 'only_blog', detailLevel: 'all' });
+    expect(columns(a.container, 'public.posts')).toEqual(['id', 'user_id', 'title']);
+    cleanup();
+    const b = await viewer({ layout: layoutWith({}), defaultDetailLevel: 'keys' });
+    expect(columns(b.container, 'public.posts')).toEqual(['id', 'user_id']);
+    cleanup();
+    const c = await viewer({ layout: PER_VIEW, view: 'only_blog', defaultDetailLevel: 'all' });
+    expect(columns(c.container, 'public.posts')).toEqual([]);
   });
 });
 

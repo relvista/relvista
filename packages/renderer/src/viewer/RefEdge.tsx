@@ -51,12 +51,16 @@ export const RefEdge = memo<EdgeProps<RefFlowEdge>>(function RefEdge({
         merged={data.merged ?? null}
       />
       {v.edgeEvents ? (
+        // Hidden: `pointer-events: stroke` hit-tests the stroke whatever the visibility (SVG 2),
+        // and a hidden path is not painted. Painted (even transparent), the hit paths added about
+        // 17 ms to Chrome's compositing pass of every drag frame at 600 tables (~72 → ~55 ms).
         <path
           className="rv-edge-hit"
           d={data.route.path}
           fill="none"
           stroke="transparent"
           strokeWidth={EDGE_HIT_WIDTH}
+          visibility="hidden"
           style={{ pointerEvents: 'stroke' }}
         />
       ) : null}

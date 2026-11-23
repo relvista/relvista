@@ -1,27 +1,37 @@
-import type { ReactNode } from 'react';
+import { Suspense, lazy, type ComponentType, type ReactNode } from 'react';
 import type { Props as MDXCodeProps } from '@theme/MDXComponents/Code';
 import OriginalMDXCode from '@theme-init/MDXComponents/Code';
-import DbmlDiagram from '@theme/DbmlDiagram';
-import DbmlDiff from '@theme/DbmlDiff';
-import { parseDbmlMeta, splitDiffFence } from '../../../meta.js';
+import { registeredDbmlFence, type DbmlFenceProps } from '../../../client/fence.js';
 
-const DBML_CLASS = /(?:^|\s)language-dbml(?:\s|$)/;
-const DBML_DIFF_CLASS = /(?:^|\s)language-dbml-diff(?:\s|$)/;
+const DBML_CLASS = /(?:^|\s)language-dbml(?:-diff)?(?:\s|$)/;
 
-function textOf(children: ReactNode): string | null {
-  if (typeof children === 'string') return children;
-  if (Array.isArray(children) && children.every((c) => typeof c === 'string'))
-    return children.join('');
-  return null;
+function isText(children: ReactNode): boolean {
+  return (
+    typeof children === 'string' ||
+    (Array.isArray(children) && children.every((c) => typeof c === 'string'))
+  );
 }
 
 /** MDX passes the fence's info string after the language as `metastring`. */
 type Props = MDXCodeProps & { metastring?: string; title?: unknown };
 
+const Original = OriginalMDXCode as unknown as ComponentType<Record<string, unknown>>;
+
+// Only for MDX the plugin's loader did not see (it registers the fence component before the page
+// renders, see client/fence.ts): loaded on demand, the code block shows until then. It also makes
+// the fence chunk exist on every site, which `themeChunkGroup` (src/index.ts) relies on.
+const LazyFence = lazy(
+  () => import(/* webpackChunkName: "relvista-fence" */ '../../../client/DbmlFence.js'),
+);
+
 /**
  * Wraps the MDX `code` element (`@theme-init/MDXComponents/Code`): a ` ```dbml ` fence becomes a
  * diagram and a ` ```dbml-diff ` fence (old and new version separated by a line `---`) a schema
  * diff; every other fence goes on to the site's `CodeBlock` unchanged.
+ *
+ * This component is on every MDX page, so it stays a stub: the diagram code (client/DbmlFence)
+ * is loaded by the pages that have a dbml fence, before they render (the plugin's MDX loader,
+ * loaders/fence-import, adds the import), so pages without diagrams load none of it.
  *
  * relvista hooks in here rather than at `@theme/CodeBlock` on purpose. `CodeBlock` is where other
  * plugins (`@docusaurus/theme-live-codeblock`) and sites (`swizzle CodeBlock --wrap`) add their own
@@ -32,42 +42,14 @@ type Props = MDXCodeProps & { metastring?: string; title?: unknown };
  * `<CodeBlock language="dbml">` and ` ```dbml static ` stay code.
  */
 export default function MDXCodeWithDbml(props: Props): ReactNode {
-  const className = props.className ?? '';
-  const diff = DBML_DIFF_CLASS.test(className);
-  const text = diff || DBML_CLASS.test(className) ? textOf(props.children) : null;
-  if (text === null) return <OriginalMDXCode {...props} />;
-
-  const meta = parseDbmlMeta(props.metastring);
-  if (meta.static) return <OriginalMDXCode {...props} />;
-  const title = meta.title ?? (typeof props.title === 'string' ? props.title : undefined);
-  if (diff) {
-    // Without a `---` line the whole body is the new version, and the diff says the old is missing.
-    const parts = splitDiffFence(text) ?? { new: text.replace(/\n$/, '') };
-    return (
-      <DbmlDiff
-        {...parts}
-        title={title}
-        height={meta.height}
-        view={meta.view}
-        layout={meta.layout}
-        detailLevel={meta.detailLevel}
-        ssr={meta.ssr}
-        id={meta.id}
-        summary={meta.summary}
-      />
-    );
-  }
+  if (!DBML_CLASS.test(props.className ?? '') || !isText(props.children))
+    return <OriginalMDXCode {...props} />;
+  const fenceProps = { ...props, original: Original } as DbmlFenceProps;
+  const Fence = registeredDbmlFence();
+  if (Fence) return <Fence {...fenceProps} />;
   return (
-    <DbmlDiagram
-      value={text.replace(/\n$/, '')}
-      title={title}
-      height={meta.height}
-      view={meta.view}
-      layout={meta.layout}
-      source={meta.source}
-      detailLevel={meta.detailLevel}
-      ssr={meta.ssr}
-      id={meta.id}
-    />
+    <Suspense fallback={<OriginalMDXCode {...props} />}>
+      <LazyFence {...fenceProps} />
+    </Suspense>
   );
 }

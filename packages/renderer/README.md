@@ -42,8 +42,18 @@ export function Schema() {
 
 `DbmlViewer` keeps the last valid diagram while the DBML has errors, lays tables out (dagre first,
 then ELK in a worker), honours saved positions from a `layout` file, switches DiagramViews and has
-a toolbar for zoom, fit, fullscreen, export, print and "Open in editor". It needs a browser: on the
-server, render `DiagramSvg` instead.
+a toolbar for search, detail level, zoom, fit, fullscreen, export, print, links and "Open in
+editor". It needs a browser: on the server, render `DiagramSvg` instead.
+
+Readers can drag tables (`draggable`, default true; nothing is saved). With `frozen` the layout
+starts locked instead: no dragging (pointer, touch or keyboard) and no collapsing or expanding of
+groups, while panning, zooming, search and the rest work. The toolbar's `'lock'` item (in
+`DEFAULT_TOOLBAR`, after `'fit'`) unlocks it, and locking again puts back the arrangement of
+`layout` without moving the view. `draggable={false}` wins: no lock button, never movable.
+
+```tsx
+<DbmlViewer source={dbml} layout={layout} frozen />
+```
 
 ## Static SVG (server-side rendering)
 
@@ -67,7 +77,7 @@ if (model) {
   editable (the relvista editor uses it): controlled `layout` + `onLayoutChange`, auto-layout,
   pin and collapse, per-view layouts, highlight, an imperative handle (fit, focus, export).
 - Export: `renderDiagramSvgString`, `exportPng`, `exportPdf` (tiled multi-page PDF; jsPDF loads
-  only when called), `printDiagram`, `downloadBlob`.
+  only when called; Greek, Cyrillic, Chinese and Japanese stay text through embedded font subsets), `printDiagram`, `downloadBlob`.
 - Links: `encodeShareHash` / `decodeShareHash` (compressed `#dbml=` share links),
   `createEditorLink`, deep-link targets (`#table=`, `#view=`).
 - Layout edits: `setNodePositions`, `setNodeSettings`, `effectivePositions`, `nodeEntry`.
@@ -83,7 +93,11 @@ the stylesheet. The variables are listed in the
 
 ## Credits and licence
 
-MIT. The interactive viewer is built on [React Flow](https://reactflow.dev) (MIT, by xyflow); its
+relvista's code is MIT. The package also ships the PDF export's fonts under their own licences
+(below), so its `license` field reads `MIT AND OFL-1.1 AND Apache-2.0`. The interactive viewer is
+built on [React Flow](https://reactflow.dev) (MIT, by xyflow); its
 attribution badge is hidden in the canvas and credited here instead. PDF export uses
 [jsPDF](https://github.com/parallax/jsPDF) and [svg2pdf.js](https://github.com/yWorks/svg2pdf.js)
-(both MIT).
+(both MIT). For text outside WinAnsi it embeds subsets of Noto Sans (SIL Open Font License 1.1)
+and Droid Sans Fallback (Apache License 2.0), loaded only when a PDF needs them; their licences
+are in `dist/export/pdf/fonts/LICENSES.md`.

@@ -1507,12 +1507,14 @@ export class EditorStore {
   // --- navigation (design phase3 §6.8–§6.10) ------------------------------------------------
 
   /**
-   * Detail level from the pane's switch or keys 1 / 2 / 3: written to `layout.settings` as one
-   * layout history step ('all' removes the key); dirty only when the file says otherwise.
+   * Detail level from the pane's switch or keys 1 / 2 / 3, for the open view: written to
+   * `layout.settings` as one layout history step (the default view: `detailLevel`, 'all' removes
+   * the key; a named view: its own level, see `withDetailLevel`); dirty only when the file says
+   * otherwise.
    */
   setDetailLevel(level: DetailLevel): void {
     const layout = this.state.ws.layout;
-    const next = withDetailLevel(layout, level);
+    const next = withDetailLevel(layout, level, this.state.ws.view);
     if (this.state.detailOverride !== null) this.set({ detailOverride: null });
     if (next === layout || !next) return;
     this.commitLayout(next);

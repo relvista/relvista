@@ -5,14 +5,14 @@
 - Code: `packages/core/src/geometry/layout*.ts`, `packages/core/src/geometry/elk.ts`,
   `packages/core/src/geometry/collapse.ts`
 - Tests: `packages/core/test/geometry-layout.test.ts`, `geometry-collapse.test.ts`,
-  `geometry-auto.test.ts`; measurement `engine-auto.bench.ts`
+  `geometry-auto.test.ts`, `geometry-rows.test.ts`; measurement `engine-auto.bench.ts`
 - Contract: [phase1-contracts.md](phase1-contracts.md) (`layout.ts`)
 
 ```ts
 layoutDiagram(model, options?: AutoLayoutOptions): Promise<DiagramGeometry>  // ELK (default), auto, dagre, grid
 layoutDiagramSync(model, options?: LayoutOptions): DiagramGeometry           // dagre (default) or grid
 needsElk(model, options?: LayoutOptions): boolean   // would engine 'auto' run ELK at all?
-AUTO_DAGRE_MAX_NODES = 3                            // 'auto': dagre up to this component size
+AUTO_DAGRE_MAX_NODES = 4                            // 'auto': dagre up to this component size
 collapsedGroupIds(model, saved): Set<string>        // groups the saved layout marks collapsed
 measureCollapsedGroup(group, tableCount, measure?)  // size of a collapsed group card
 displayNodeOf(tableId, model, collapsed): string    // table id, or group:<name> when collapsed
@@ -101,12 +101,13 @@ plain `w`/`h` override.
 ## Engine `auto`
 
 Per connected component of free nodes: dagre (`dagreComponent`, no routes) when it has at most
-`AUTO_DAGRE_MAX_NODES` (3) nodes and no TableGroup with members in it, else ELK. Components
+`AUTO_DAGRE_MAX_NODES` (4) nodes and no TableGroup with members in it, else ELK. Components
 without refs never run ELK in either case (grid placement), so `needsElk(model, options)` is true
 only when some free component has refs and is above the threshold or holds a group. elkjs is not
 imported when no component needs it. `layoutDiagram`'s default stays `elk`; the canvas opts into
-`auto` (phase 3 wave 2). The threshold comes from `test/engine-auto.bench.ts`; the table and the
-reasoning (dagre's longer port-to-port segments) are in decision 0003.
+`auto` (phase 3 wave 2). The threshold comes from `test/engine-auto.bench.ts` with the rule the
+owner signed off (dagre within 5 % of ELK on crossings, area and refs under tables in ≥ 95 % of
+components); the tables are in decision 0003 (3 at first, 4 since the row post-pass below).
 
 ## ELK engine (`elk.ts`)
 
@@ -171,13 +172,42 @@ so `EdgeGeometry.points` always run `ref.from → ref.to`.
 
 ## dagre engine (`layout-dagre.ts`)
 
-`@dagrejs/dagre` (synchronous), `rankdir LR` / `TB`, `nodesep 48`, `ranksep 110`, network-simplex
-ranker. dagre has no ports and no padding control for compound nodes, so groups are laid out in two
-levels: each group's members are laid out alone (their own components, packed 48 apart), the group
-becomes one node of the outer layout sized to that block plus group padding and header, and the
-inner placement is moved into it. Group boxes can therefore never overlap other tables. Multi-edges
-and self-refs are dropped for dagre. dagre produces no routes (its points do not attach to column
-rows); `geometry.edges` is empty and the renderer routes refs itself.
+`@dagrejs/dagre` (synchronous), `rankdir LR` / `TB`, `nodesep 48`, `ranksep 110`, `edgesep 20`,
+network-simplex ranker. dagre has no ports and no padding control for compound nodes, so groups are
+laid out in two levels: each group's members are laid out alone (their own components, packed 48
+apart), the group becomes one node of the outer layout sized to that block plus group padding and
+header, and the inner placement is moved into it. Group boxes can therefore never overlap other
+tables. dagre gets at most one edge per pair of tables and no self-refs. dagre produces no routes
+(its points do not attach to column rows); `geometry.edges` is empty and the renderer routes refs
+itself.
+
+**Row post-pass** (`layout-rows.ts`, `RIGHT` only). dagre centres tables on each other, so a ref
+would leave the parent's key row and reach the child's FK row with a vertical jog. After dagre,
+`alignRows` moves tables up or down inside their rank (x and rank membership never change) so the
+rows a ref joins face each other where the rank allows it:
+
+- Objective: the sum of vertical offsets along every ref (port row, dagre's bend points in the
+  ranks it crosses, port row), lowered by coordinate descent: each rank in turn is solved exactly
+  as an ordered weighted-median (isotonic) problem with the other ranks fixed, sweeping left to
+  right and back (at most 6 sweeps); the first 2 sweeps may reorder a rank by where its refs pull.
+  Groups of tables joined by already-straight refs then move as one (a rank alone stalls on a
+  chain whose middle tables are pulled both ways), followed by more sweeps (at most 4 rounds).
+- Spacing: tables of one rank stay at least `nodesep` (48) apart, bend points `edgesep` (20),
+  a bend point and a table 34, as dagre spaces them; tables of different ranks cannot overlap.
+- Clearance: a ref that crosses ranks must clear, by 12 units, the nearest table on each side of
+  its bend point in those ranks, on the bend point's side. These become bounds on the table and
+  on a line end that carries at least half of the line there; contradictory bounds are dropped.
+- Refs both ways between two tables are one dagre edge (the first ref's direction) for runs with
+  the post-pass; the bench measured larger pictures with two antiparallel edges. Several refs
+  between one pair each count; self refs are ignored; a composite ref counts at its first column.
+- Not applied: top to bottom (`DOWN`, the output is dagre's, as in 1.0), and the outer level of a
+  grouped component (its nodes are group boxes). Inside a group the members are aligned. A
+  collapsed group is an ordinary node whose refs attach at its header. Sticky notes are never part
+  of a component with refs.
+- Limits: a local optimum. A table pulled equally both ways (a parent between two children that
+  cannot both face it, refs both ways) stays where it is inside the tie, so neither ref need be
+  straight; moving it to one end instead grew the pictures in the bench. Lining up rows can make a
+  component taller (up to 2.3× in dense random test schemas). Deterministic like the rest.
 
 ## Grid engine
 
@@ -195,6 +225,8 @@ Node 24.16, Apple M4, in vitest, median of 7 runs after warm-up (estimate measur
 | `14-large` (6 groups) | 61     | 61 ms   | 11 ms  | 0.4 ms |
 
 The first `layoutDiagram` call also loads and initialises elkjs: ~130 ms including a tiny layout.
+The dagre row post-pass (measured later, Node 24.20, Windows 10) adds about 10 % to dagre: ~9 ms on
+the editor's generated 300-table schema, where dagre itself takes ~95 ms.
 The test suite asserts `14-large` with ELK stays under 3 s.
 
 ## Known limits

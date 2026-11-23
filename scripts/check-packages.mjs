@@ -8,7 +8,8 @@
 //   - relvista's own rules (CONTRIBUTING.md, "Packaging"): README.md, LICENSE identical to the
 //     root one, no tests, no `src/` except the plugin's `src/theme/` (getTypeScriptThemePath), no
 //     source maps or declaration maps, no build configs, no `workspace:` ranges left in the
-//     packed package.json, the metadata every package must carry.
+//     packed package.json, the metadata every package must carry,
+//   - a tarball size ceiling per package (`maxKB`), so nothing large slips in unnoticed.
 // Prints a summary table and exits 1 on any problem.
 //
 //   node scripts/check-packages.mjs [--list] [--keep]
@@ -48,11 +49,16 @@ function pnpm(argv) {
 }
 const args = new Set(process.argv.slice(2));
 
-/** Published packages, with the files a build must have produced before packing. */
+/**
+ * Published packages, with the files a build must have produced before packing and the tarball
+ * ceiling in KB. The renderer's includes the PDF export's fonts (about 1.8 MB packed, loaded only
+ * for text outside WinAnsi; docs/design/phase3-v1.md §4.4).
+ */
 const PACKAGES = [
-  { dir: 'core', built: ['dist/index.js', 'dist/index.d.ts'] },
+  { dir: 'core', maxKB: 128, built: ['dist/index.js', 'dist/index.d.ts'] },
   {
     dir: 'renderer',
+    maxKB: 2560,
     // The stylesheet exports carry empty `.d.ts` stubs (`types` condition), so attw checks them too.
     built: [
       'dist/index.js',
@@ -63,7 +69,11 @@ const PACKAGES = [
       'dist/xyflow.css.d.ts',
     ],
   },
-  { dir: 'docusaurus-plugin', built: ['lib/index.js', 'lib/index.d.ts', 'lib/client/static.css'] },
+  {
+    dir: 'docusaurus-plugin',
+    maxKB: 128,
+    built: ['lib/index.js', 'lib/index.d.ts', 'lib/client/static.css'],
+  },
 ];
 
 /** package.json fields every published package must carry (docs/design/phase3-v1.md §10). */
@@ -109,10 +119,17 @@ export function fileProblems(dir, files) {
   return problems;
 }
 
+/**
+ * The SPDX licence each package declares: MIT, except the renderer, whose tarball also ships the
+ * PDF export's fonts (SIL OFL 1.1, with Droid Sans Fallback glyphs under Apache 2.0).
+ */
+const LICENSES = { renderer: 'MIT AND OFL-1.1 AND Apache-2.0' };
+
 /** Problems in the packed package.json. */
 export function manifestProblems(dir, pkg) {
   const problems = REQUIRED_FIELDS.filter((k) => pkg[k] === undefined).map((k) => `no "${k}"`);
-  if (pkg.license !== 'MIT') problems.push('license is not MIT');
+  const license = LICENSES[dir] ?? 'MIT';
+  if (pkg.license !== license) problems.push(`license is not ${license}`);
   if (pkg.type !== 'module') problems.push('type is not module');
   if (pkg.repository?.url !== REPO_URL) problems.push(`repository.url is not ${REPO_URL}`);
   if (pkg.repository?.directory !== `packages/${dir}`)
@@ -229,7 +246,7 @@ async function main() {
   fail(editorLicenseProblems(), 'Editor licence (AGPL-3.0-or-later, decision 0006)');
 
   try {
-    for (const { dir, built, attwExclude } of PACKAGES) {
+    for (const { dir, built, attwExclude, maxKB } of PACKAGES) {
       const missing = built.filter((f) => !existsSync(join(root, 'packages', dir, f)));
       if (missing.length) {
         fail([`not built (${missing.join(', ')}); run pnpm build first`], `packages/${dir}`);
@@ -240,7 +257,11 @@ async function main() {
       const tarball = pack(dir, dest);
       const files = tarballFiles(tarball);
       const pkg = packedManifest(tarball);
+      const size = readFileSync(tarball).byteLength;
       const own = [...fileProblems(dir, files), ...manifestProblems(dir, pkg)];
+      if (size > maxKB * 1024) {
+        own.push(`tarball is ${(size / 1024).toFixed(1)} KB, over the ${maxKB} KB ceiling`);
+      }
       const lint = await runPublint(tarball);
       const attw = runAttw(tarball, attwExclude);
 
@@ -260,7 +281,7 @@ async function main() {
         dir,
         name: pkg.name,
         files: files.length,
-        size: readFileSync(tarball).byteLength,
+        size,
         publint: `${count('error')}/${count('warning')}/${count('suggestion')}`,
         attw: `${attw.problems.length} (${attw.entrypoints.join(' ')})`,
         own: String(own.length),

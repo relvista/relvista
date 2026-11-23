@@ -30,8 +30,10 @@ captured with Playwright. Gzip sizes are `gzip -9` of the emitted files.
 
 - Docs sites render diagrams at build time in Node, ELK included (phase3-v1 §5.1); the browser
   receives the positions and never downloads ELK for a server-rendered diagram.
-- Elsewhere `engine: 'auto'`: dagre for connected components of up to `AUTO_DAGRE_MAX_NODES` = **3**
-  free nodes without groups, ELK (in the worker) above. `needsElk(model, options)` tells whether
+- Elsewhere `engine: 'auto'`: dagre for connected components of up to `AUTO_DAGRE_MAX_NODES`
+  free nodes without groups (**3** when accepted, **4** since the
+  [2026-11-22 re-measurement](#re-measurement-2026-11-22-dagre-row-post-pass)), ELK (in the
+  worker) above. `needsElk(model, options)` tells whether
   any component would run ELK, so the canvas skips the ELK pass, and the worker download,
   entirely when it is false. Components without refs never run ELK (grid placement) whatever
   their size.
@@ -113,6 +115,61 @@ measured.
 `packages/core/test/engine-auto.bench.ts`. That is 3 with today's dagre. When dagre changes (for
 example the post-pass above), re-run the bench, append the new table here with its date, and set
 the constant from it; no new decision is needed as long as the rule is unchanged.
+
+### Re-measurement 2026-11-22 (dagre row post-pass)
+
+dagre now has the post-pass the "Open" paragraph above asks for (`layout-rows.ts`,
+[autolayout.md](../design/autolayout.md#dagre-engine-layout-dagrets)): left to right, tables move
+up or down inside their rank so the rows a ref joins face each other, never closer than the dagre
+spacing; refs both ways between two tables are one dagre edge. Same script, same inputs (288
+components, 281 without groups), same quantities (a)-(d) and pass criteria; run with
+`pnpm --filter @relvista/core exec vitest bench --run --reporter=verbose test/engine-auto.bench.ts`
+(the verbose reporter prints the tables). Node 24.20, Windows 10, 2026-11-22. The script on `main`
+(no post-pass) reproduces the 2026-11-21 tables above exactly on this machine; the measures do not
+depend on the machine.
+
+Per component size (dagre / ELK, medians):
+
+| Nodes | Cases | Pass (a)-(d) | Crossings | Length | Area | Cases with more refs under tables |
+| ----- | ----- | ------------ | --------- | ------ | ---- | --------------------------------- |
+| 2     | 60    | 100 %        | 1.00      | 1.00   | 1.00 | 0                                 |
+| 3     | 49    | 92 %         | 1.00      | 1.00   | 1.00 | 0                                 |
+| 4     | 16    | 44 %         | 1.00      | 1.03   | 1.01 | 0                                 |
+| 5     | 18    | 50 %         | 1.00      | 1.04   | 0.98 | 0                                 |
+| 6     | 14    | 43 %         | 1.00      | 1.01   | 1.00 | 0                                 |
+| 7     | 13    | 54 %         | 1.00      | 1.01   | 1.00 | 0                                 |
+| 8     | 13    | 15 %         | 1.00      | 1.16   | 1.04 | 0                                 |
+| 10    | 16    | 25 %         | 1.00      | 1.04   | 0.97 | 1                                 |
+| 12    | 10    | 10 %         | 1.25      | 1.06   | 1.09 | 0                                 |
+| 14    | 10    | 10 %         | 1.08      | 1.01   | 1.23 | 1                                 |
+
+Cumulative, components of up to n nodes, share of cases where dagre is within 5 % (not worse for
+(d)):
+
+| n   | (a) crossings | (b) length | (c) area | (d) under tables | (a)+(c)+(d) |
+| --- | ------------- | ---------- | -------- | ---------------- | ----------- |
+| 2   | 100 %         | 100 %      | 100 %    | 100 %            | **100 %**   |
+| 3   | 100 %         | 97 %       | 99 %     | 100 %            | **99 %**    |
+| 4   | 98 %          | 93 %       | 96 %     | 100 %            | **95 %**    |
+| 5   | 98 %          | 89 %       | 94 %     | 100 %            | 92 %        |
+| 6   | 97 %          | 87 %       | 92 %     | 100 %            | 90 %        |
+| 8   | 96 %          | 83 %       | 87 %     | 100 %            | 84 %        |
+| 10  | 94 %          | 77 %       | 81 %     | 100 %            | 78 %        |
+
+**Result: `AUTO_DAGRE_MAX_NODES = 4`** (the signed-off rule, unchanged: (a)+(c)+(d) in ≥ 95 % of
+components): 119 of 125 components of up to 4 nodes pass (95.2 %), 132 of 143 up to 5 (92.3 %).
+The margin at 4 is one component. Length (b) is no longer structural: dagre's median is within
+1-4 % of ELK up to 7 nodes, and the literal §3.3 rule with (b) now admits 3 (96 % at 3, 90 % at 4;
+none before). Refs under tables (d) dropped to never worse than ELK up to 10 nodes. Area (c) is
+now the criterion that limits the threshold: lining up rows makes some pictures taller (median
+1.00 vs 0.73 of ELK at two nodes before, where dagre was smaller by not lining anything up).
+Of the examples, `01-minimal`, `03-enums-and-notes`, `04-indexes-and-checks`, `06-header-colors`,
+`07-sticky-notes`, `09-table-partials` and `10-records` lay out without ELK under `'auto'`.
+
+The post-pass costs little next to dagre itself: about 9 ms on the editor's generated 300-table
+schema, where dagre takes about 95 ms (vitest, this machine, under load). Layout time per
+component in the script: random 7-table schema 0.33 ms dagre vs 4.2 ms ELK, `02-ecommerce`
+6.0 ms vs 12.3 ms (the machine was shared, so only the ratio is meaningful).
 
 ## Not done (yet)
 

@@ -143,6 +143,57 @@ describe('hydrating a static diagram', () => {
     ]);
   });
 
+  it("view=: draws the view's saved detail level and leaves it to the viewer", async () => {
+    const source = `${SOURCE}\nDiagramView blog {\n  Tables {\n    users\n    posts\n  }\n}`;
+    const saved: Layout = {
+      version: 1,
+      views: { '*': { nodes: {} } },
+      settings: {
+        detailLevel: 'keys',
+        'x-relvista-view-settings': { blog: { detailLevel: 'names' } },
+      },
+    };
+    const columnsIn = (html: string) => (html.match(/data-rv-column="/g) ?? []).length;
+    // The static picture: no column rows for "blog" (names), key rows for the default view.
+    expect(columnsIn(await serverHtml(<DbmlDiagram value={source} layout={saved} />))).toBe(5);
+    const app = <DbmlDiagram value={source} layout={saved} view="blog" />;
+    const html = await serverHtml(app);
+    expect(columnsIn(html)).toBe(0);
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    await act(async () => {
+      hydrateRoot(container, app);
+    });
+    await settle();
+    const props = viewerProps.at(-1)!;
+    // No detailLevel override: the viewer picks the level of each view it shows.
+    expect(props['detailLevel']).toBeUndefined();
+    expect(props['defaultDetailLevel']).toBe('all');
+    expect(props['view']).toBe('blog');
+    expect(props['layout']).toEqual(saved);
+  });
+
+  it('a detail= override still wins over the view level, at build time and in the viewer', async () => {
+    const source = `${SOURCE}\nDiagramView blog {\n  Tables {\n    users\n  }\n}`;
+    const saved: Layout = {
+      version: 1,
+      views: { '*': { nodes: {} } },
+      settings: { 'x-relvista-view-settings': { blog: { detailLevel: 'names' } } },
+    };
+    const app = <DbmlDiagram value={source} layout={saved} view="blog" detailLevel="all" />;
+    const html = await serverHtml(app);
+    expect((html.match(/data-rv-column="/g) ?? []).length).toBe(2);
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    await act(async () => {
+      hydrateRoot(container, app);
+    });
+    await settle();
+    expect(viewerProps.at(-1)!['detailLevel']).toBe('all');
+  });
+
   it('without server markup (client-side navigation) the viewer lays out itself', async () => {
     const { render } = await import('@testing-library/react');
     const { container } = render(<DbmlDiagram value={SOURCE} />);

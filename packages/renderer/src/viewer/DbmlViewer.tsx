@@ -8,6 +8,7 @@ import {
   resolveTableRef,
   selectView,
   tableTitle,
+  viewDetailLevel,
   type Box,
   type CompileInput,
   type DetailLevel,
@@ -22,6 +23,8 @@ import {
   type Viewport,
 } from '@relvista/core';
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -42,11 +45,10 @@ import {
 import { narrowViewerHeight, viewerPadding } from '../canvas/frame.js';
 import type { CanvasNodeEvent } from '../canvas/types.js';
 import { diffDecorations, diffLegend } from '../diff/decorations.js';
-import { exportPdfWithReport, type PdfOptions, type PdfPageSource } from '../export/pdf/index.js';
-import { contentBoxes, paddedBounds, planTiles, type TilePlan } from '../export/pdf/plan.js';
+import type { PdfOptions, PdfPageSource } from '../export/pdf/index.js';
 import { layoutSync } from '../geometry.js';
 import { FocusControl } from '../nav/FocusControl.js';
-import { PdfDialog, isViewEmpty } from '../nav/PdfDialog.js';
+import { isViewEmpty } from '../nav/viewEmpty.js';
 import { SearchPanel, type SearchPanelMode } from '../nav/SearchPanel.js';
 import type { TablePath } from '../nav/path.js';
 import {
@@ -61,6 +63,9 @@ import type { ColorMode } from '../theme.js';
 import { AlertIcon } from './icons.js';
 import { SideCardActionsContext, type SideCardActions } from './SideCard.js';
 import { DEFAULT_TOOLBAR, Toolbar, type ExportKind, type ToolbarItem } from './Toolbar.js';
+
+// The PDF dialog and its tile planner load when the dialog first opens (jsPDF later, on export).
+const PdfExport = lazy(() => import('./PdfExport.js'));
 
 /** Props of `DbmlViewer`. */
 export interface DbmlViewerProps {
@@ -82,10 +87,30 @@ export interface DbmlViewerProps {
   editorUrl?: string;
   /** Called with the compile diagnostics whenever the source is compiled. */
   onDiagnostics?: (diagnostics: Diagnostic[]) => void;
-  /** Nodes can be dragged (positions are not persisted). Default true. */
+  /**
+   * Nodes can be dragged (positions are not persisted). Default true. `false` wins over `frozen`:
+   * nothing can ever be dragged and the toolbar has no lock button.
+   */
   draggable?: boolean;
-  /** Overrides `layout.settings.detailLevel` (the toolbar's Detail menu can still change it). */
+  /**
+   * Start with the layout locked, as arranged in `layout` (a docs diagram its author laid out):
+   * tables, notes and groups cannot be moved (pointer, touch or keyboard) and groups cannot be
+   * collapsed or expanded. Panning, zooming, search, paths, focus, detail level, the details card,
+   * export, print and links work as usual. The toolbar's `'lock'` button unlocks the layout for
+   * this reader (nothing is saved); locking it again puts back the arrangement of `layout` (its
+   * positions and collapsed groups) and leaves the viewport where it is. With
+   * `draggable={false}` there is no lock button and the layout stays locked. Default false.
+   */
+  frozen?: boolean;
+  /**
+   * Overrides the layout's detail level, for every view (the toolbar's Detail menu can still
+   * change it). Without it, each view shows its saved level (`viewDetailLevel`).
+   */
   detailLevel?: DetailLevel;
+  /**
+   * Detail level of views the layout sets none for (no `detailLevel` prop either). Default 'all'.
+   */
+  defaultDetailLevel?: DetailLevel;
   /** Overrides `layout.settings.theme.edgeStyle`. Default orthogonal. */
   edgeStyle?: EdgeStyle;
   /**
@@ -334,7 +359,9 @@ export function DbmlViewer({
   editorUrl,
   onDiagnostics,
   draggable = true,
+  frozen = false,
   detailLevel,
+  defaultDetailLevel,
   edgeStyle,
   minimap = 'auto',
   workerUrl,
@@ -447,7 +474,21 @@ export function DbmlViewer({
   // --- detail level --------------------------------------------------------------------------
   const [userDetail, setUserDetail] = useState<DetailLevel | null>(null);
   useEffect(() => setUserDetail(null), [detailLevel]);
-  const detail: DetailLevel = userDetail ?? detailLevel ?? layout?.settings?.detailLevel ?? 'all';
+  const detail: DetailLevel =
+    userDetail ?? detailLevel ?? viewDetailLevel(layout, activeView) ?? defaultDetailLevel ?? 'all';
+  /**
+   * Switches the view from the toolbar or a search hit (a deep link sets its own detail). The
+   * toolbar's detail choice is kept, unless the new view saves another level than the old one:
+   * then the new view's level shows.
+   */
+  const switchView = useCallback(
+    (name: string) => {
+      if (viewDetailLevel(layout, name) !== viewDetailLevel(layout, activeView))
+        setUserDetail(null);
+      setViewName(name);
+    },
+    [layout, activeView],
+  );
 
   // --- search, path, picked hit, focus --------------------------------------------------------
   const [search, setSearch] = useState<{
@@ -547,7 +588,7 @@ export function DbmlViewer({
       closeSearch();
       if (!m) return;
       if (hit.kind === 'view') {
-        setViewName(hit.id);
+        switchView(hit.id);
         return;
       }
       let p: Picked;
@@ -568,7 +609,7 @@ export function DbmlViewer({
       setPicked(p);
       frame(p.ids, true);
     },
-    [closeSearch, focusedIds, frame],
+    [closeSearch, focusedIds, frame, switchView],
   );
 
   const onPathChange = useCallback(
@@ -717,6 +758,12 @@ export function DbmlViewer({
   // --- layout given to the canvas: build-time positions where the layout has none -------------
   const canvasLayout = useMemo(() => withSsrPositions(layout, ssrLayout), [layout, ssrLayout]);
 
+  // --- frozen: locked until the reader unlocks it (never saved; `frozen` changing resets it) ---
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => setUnlocked(false), [frozen]);
+  const locked = frozen && !unlocked;
+  const toggleLock = useCallback(() => setUnlocked((u) => !u), []);
+
   // --- export / print ------------------------------------------------------------------------
   const fileName = exportBaseName((title ?? model?.project?.name ?? 'diagram').trim()) || 'diagram';
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -787,17 +834,6 @@ export function DbmlViewer({
     },
     [model, activeView, focus, baseDecorations, hostDecorations, canvasLayout, detail],
   );
-  const planFor = useCallback(
-    (o: PdfOptions, name?: string): TilePlan => {
-      const src = pageSource(name ?? activeView);
-      const b = src ? src.geometry.bounds : { x: 0, y: 0, width: 1, height: 1 };
-      return planTiles(paddedBounds(b), {
-        ...o,
-        ...(src ? { content: contentBoxes(src.geometry) } : {}),
-      });
-    },
-    [pageSource, activeView],
-  );
   const docTitle = (title ?? model?.project?.name ?? '').trim();
   const onPdf = useCallback(
     async (o: PdfOptions & { views: string[] }) => {
@@ -807,6 +843,7 @@ export function DbmlViewer({
       if (!pages.length) return;
       say('Preparing the PDF…');
       try {
+        const { exportPdfWithReport } = await import('../export/pdf/index.js');
         const report = await exportPdfWithReport(pages, {
           ...options,
           ...(docTitle ? { title: docTitle } : {}),
@@ -1039,6 +1076,7 @@ export function DbmlViewer({
           onUnknownView={onUnknownView}
           layout={canvasLayout}
           draggable={draggable}
+          locked={locked}
           colorMode={colorMode}
           detailLevel={detail}
           {...(edgeStyle ? { edgeStyle } : {})}
@@ -1077,13 +1115,15 @@ export function DbmlViewer({
           onPrint={onPrint}
           views={viewNames}
           view={activeView}
-          onViewChange={setViewName}
+          onViewChange={switchView}
           editorHref={href}
           {...(model ? { onSearch: () => (search ? closeSearch() : openSearch()) } : {})}
           searchOpen={!!search}
           detail={detail}
           onDetailChange={setUserDetail}
           {...(anchor ? { onCopyLink: () => void copyLink() } : {})}
+          // Nothing to unlock unless frozen, nor when nodes can never be dragged.
+          {...(frozen && draggable ? { locked, onToggleLock: toggleLock } : {})}
           pdf={!!model}
         />
       ) : null}
@@ -1128,13 +1168,15 @@ export function DbmlViewer({
       ) : null}
 
       {pdfOpen && model ? (
-        <PdfDialog
-          views={pdfViews}
-          current={activeView}
-          planFor={planFor}
-          onExport={(o) => void onPdf(o)}
-          onClose={() => setPdfOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <PdfExport
+            views={pdfViews}
+            current={activeView}
+            pageSource={pageSource}
+            onExport={(o) => void onPdf(o)}
+            onClose={() => setPdfOpen(false)}
+          />
+        </Suspense>
       ) : null}
 
       <div

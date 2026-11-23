@@ -5,7 +5,10 @@ import { layoutSchema } from './schema.generated.js';
 import {
   DEFAULT_VIEW,
   LAYOUT_SCHEMA_ID,
+  VIEW_SETTINGS_KEY,
+  type DetailLevel,
   type EdgeLayout,
+  type LayoutSettings,
   type Layout,
   type LayoutError,
   type NodeId,
@@ -13,6 +16,7 @@ import {
   type ParseLayoutResult,
   type ViewLayout,
   type ViewLayoutOverride,
+  type ViewSettings,
 } from './types.js';
 
 // ajv ships CommonJS; under NodeNext the default import is `module.exports`, whose `.default` is the class.
@@ -134,6 +138,8 @@ const EXTENSION_KEY = /^x-/;
 /**
  * Sorts keys recursively and rounds numbers. `x-*` extension values (at the top level and in
  * `settings`, where the schema allows them) are copied verbatim: only their key position is sorted.
+ * relvista's own `settings[VIEW_SETTINGS_KEY]` has its keys sorted too, at every depth, but its
+ * values are never rounded or dropped: a later version may store settings this one does not know.
  */
 function normalize(value: unknown, path: readonly string[]): unknown {
   const key = path[path.length - 1];
@@ -145,11 +151,28 @@ function normalize(value: unknown, path: readonly string[]): unknown {
     for (const k of Object.keys(value).sort(compareKeys)) {
       const v = (value as Record<string, unknown>)[k];
       if (v === undefined) continue;
-      entries.push([k, extensionsHere && EXTENSION_KEY.test(k) ? v : normalize(v, [...path, k])]);
+      if (!extensionsHere || !EXTENSION_KEY.test(k)) entries.push([k, normalize(v, [...path, k])]);
+      else entries.push([k, isViewSettingsPath(path, k) ? sortKeys(v) : v]);
     }
     return fromEntries(entries);
   }
   return value;
+}
+
+/** Keys sorted recursively (undefined values dropped, as JSON does), every other value as given. */
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  const entries: [string, unknown][] = [];
+  for (const k of Object.keys(value).sort(compareKeys)) {
+    const v = (value as Record<string, unknown>)[k];
+    if (v !== undefined) entries.push([k, sortKeys(v)]);
+  }
+  return fromEntries(entries);
+}
+
+function isViewSettingsPath(path: readonly string[], key: string): boolean {
+  return path.length === 1 && path[0] === 'settings' && key === VIEW_SETTINGS_KEY;
 }
 
 /** Locale-independent ordering by UTF-16 code units. */
@@ -161,7 +184,8 @@ function compareKeys(a: string, b: string): number {
  * Deterministic serialization for minimal git diffs: keys sorted recursively, numbers rounded to
  * 2 decimals (zoom to 4 significant digits; a positive `w`/`h` never below 0.01), 2-space indent,
  * trailing newline. Array order (waypoints) is preserved, `x-*` extension values are written as
- * given. The output of a valid layout always parses back as valid.
+ * given (relvista's own `settings["x-relvista-view-settings"]` with its keys sorted at every depth).
+ * The output of a valid layout always parses back as valid.
  */
 export function serializeLayout(layout: Layout): string {
   return `${JSON.stringify(normalize(layout, []), null, 2)}\n`;
@@ -321,4 +345,104 @@ export function mergeViewDefaults(
       setOwn(edges, id, { ...(Object.hasOwn(edges, id) ? edges[id] : {}), ...structuredClone(e) });
   }
   return out;
+}
+
+const DETAIL_LEVELS: readonly string[] = ['all', 'keys', 'names'] satisfies DetailLevel[];
+
+function isDetailLevel(v: unknown): v is DetailLevel {
+  return typeof v === 'string' && DETAIL_LEVELS.includes(v);
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** The view settings map of `settings`, when it is an object. */
+function viewSettingsOf(settings: LayoutSettings | undefined): Record<string, unknown> | undefined {
+  const all: unknown = settings?.[VIEW_SETTINGS_KEY];
+  return isRecord(all) ? all : undefined;
+}
+
+/** `settings` with the view settings map replaced (an empty map removes the key). */
+function withViewSettings(layout: Layout, map: Record<string, unknown>): Layout {
+  const settings: LayoutSettings = { ...layout.settings };
+  if (Object.keys(map).length) settings[VIEW_SETTINGS_KEY] = map as Record<string, ViewSettings>;
+  else delete settings[VIEW_SETTINGS_KEY];
+  const out: Layout = { ...layout, settings };
+  if (Object.keys(settings).length === 0) delete out.settings;
+  return out;
+}
+
+/**
+ * Detail level saved for a view: a named view's own (`settings["x-relvista-view-settings"]`), else
+ * the diagram-wide `settings.detailLevel`. Undefined when neither is set (tools then draw 'all').
+ * A view without its own level, or an unknown view, gets `settings.detailLevel`.
+ */
+export function viewDetailLevel(
+  layout: Layout | null | undefined,
+  viewName: string = DEFAULT_VIEW,
+): DetailLevel | undefined {
+  const settings = layout?.settings;
+  if (!settings) return undefined;
+  if (viewName !== DEFAULT_VIEW) {
+    const all = viewSettingsOf(settings);
+    const entry = all && Object.hasOwn(all, viewName) ? all[viewName] : undefined;
+    const own = isRecord(entry) ? entry.detailLevel : undefined;
+    if (isDetailLevel(own)) return own;
+  }
+  return settings.detailLevel;
+}
+
+/**
+ * The layout with view `viewName`'s own detail level set, or removed with `undefined` (the view
+ * then uses `settings.detailLevel`). For the default view ("*") this sets `settings.detailLevel`.
+ * Empty objects left behind are removed. Returns `layout` itself when nothing changes.
+ */
+export function withViewDetailLevel(
+  layout: Layout,
+  viewName: string,
+  level: DetailLevel | undefined,
+): Layout {
+  if (viewName === DEFAULT_VIEW) {
+    const has = !!layout.settings && Object.hasOwn(layout.settings, 'detailLevel');
+    if (level === undefined ? !has : layout.settings?.detailLevel === level) return layout;
+    const settings: LayoutSettings = { ...layout.settings };
+    if (level === undefined) delete settings.detailLevel;
+    else settings.detailLevel = level;
+    const out: Layout = { ...layout, settings };
+    if (Object.keys(settings).length === 0) delete out.settings;
+    return out;
+  }
+  const all = viewSettingsOf(layout.settings) ?? {};
+  const entry = Object.hasOwn(all, viewName) ? all[viewName] : undefined;
+  const current: Record<string, unknown> = isRecord(entry) ? { ...entry } : {};
+  const has = Object.hasOwn(current, 'detailLevel');
+  if (isRecord(entry) && (level === undefined ? !has : current.detailLevel === level))
+    return layout;
+  if (entry === undefined && level === undefined) return layout;
+  if (level === undefined) delete current.detailLevel;
+  else current.detailLevel = level;
+  const next = fromEntries(Object.entries(all).filter(([name]) => name !== viewName));
+  if (Object.keys(current).length) setOwn(next, viewName, current);
+  return withViewSettings(layout, next);
+}
+
+/**
+ * The layout with view `oldName`'s own settings (`settings["x-relvista-view-settings"]`) moved to
+ * `newName`, replacing what `newName` had, or dropped when `newName` is null (the view was
+ * deleted). The `views` entries are not touched. Returns `layout` itself when nothing changes.
+ */
+export function renameViewSettings(
+  layout: Layout,
+  oldName: string,
+  newName: string | null,
+): Layout {
+  const all = viewSettingsOf(layout.settings);
+  if (!all || !Object.hasOwn(all, oldName) || oldName === newName) return layout;
+  const entry = all[oldName];
+  const next = fromEntries(
+    Object.entries(all).filter(([name]) => name !== oldName && name !== newName),
+  );
+  if (newName !== null && newName !== DEFAULT_VIEW) setOwn(next, newName, entry);
+  return withViewSettings(layout, next);
 }

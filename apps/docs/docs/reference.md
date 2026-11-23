@@ -77,7 +77,8 @@ import '@relvista/renderer/styles.css';
 ```
 
 - [DbmlViewer](/docs/api/renderer/functions/DbmlViewer): the read-only viewer the docs use
-  (toolbar, search, export); [props](/docs/api/renderer/interfaces/DbmlViewerProps).
+  (toolbar, search, export, `frozen` layouts with a lock button);
+  [props](/docs/api/renderer/interfaces/DbmlViewerProps).
 - [DiagramCanvas](/docs/api/renderer/variables/DiagramCanvas): the interactive canvas the editor
   uses, read-only or editable with a controlled layout;
   [props](/docs/api/renderer/interfaces/DiagramCanvasProps) and
@@ -86,8 +87,9 @@ import '@relvista/renderer/styles.css';
   its geometry; [renderDiagramSvgString](/docs/api/renderer/functions/renderDiagramSvgString)
   gives the same picture as a standalone SVG file (Node too).
 - [exportPng](/docs/api/renderer/functions/exportPng),
-  [exportPdf](/docs/api/renderer/functions/exportPdf) (multi-page, tiled) and
-  [printDiagram](/docs/api/renderer/functions/printDiagram).
+  [exportPdf](/docs/api/renderer/functions/exportPdf) (multi-page, tiled;
+  [pdfCanDrawText](/docs/api/renderer/functions/pdfCanDrawText) says whether a string stays text
+  or its page becomes an image) and [printDiagram](/docs/api/renderer/functions/printDiagram).
 - [encodeShareHash](/docs/api/renderer/functions/encodeShareHash) /
   [decodeShareHash](/docs/api/renderer/functions/decodeShareHash) (share links) and
   [parseDiagramTarget](/docs/api/renderer/functions/parseDiagramTarget) /

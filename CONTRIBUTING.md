@@ -96,7 +96,9 @@ Three packages are published to npm: `@relvista/core`, `@relvista/renderer` and
   `src/` except the plugin's `src/theme/` (Docusaurus' `getTypeScriptThemePath`, used by
   `swizzle --typescript`); no source maps or declaration maps; no build configs; no `workspace:`
   ranges left in the packed `package.json`; no open-ended peer range (`>=`, `*`); the metadata
-  below.
+  below;
+- a tarball size ceiling per package (128 KB for core and the plugin, 2.5 MB for the renderer,
+  which carries the PDF export's lazily loaded fonts).
 
 `--list` prints every file of every tarball, `--keep` keeps them in the temporary directory.
 Nothing is published by it: releases go through `.github/workflows/release.yml`
@@ -107,7 +109,8 @@ Rules for the packages' `package.json`, kept by `packages:check`:
 - `type: module`, `exports` with `types` first, then `import` and `default`; a `./package.json`
   export; `main` and `types` for old resolvers; `sideEffects` (`false` for core, `**/*.css` for
   the renderer and the plugin); `files` lists only build output plus `README.md` and `LICENSE`.
-- `license`, `author`, `repository` (with `directory`), `homepage`, `bugs`, `keywords`,
+- `license` (`MIT`; the renderer's is `MIT AND OFL-1.1 AND Apache-2.0`, as its tarball ships the
+  PDF export's fonts), `author`, `repository` (with `directory`), `homepage`, `bugs`, `keywords`,
   `engines.node >=20`, `publishConfig: { access: 'public', provenance: true }`. `version` is only
   ever changed by Changesets (the version pull request).
 - **Exact pins** for every runtime dependency whose behaviour shapes output: `@dbml/parse`,

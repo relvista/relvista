@@ -4,7 +4,13 @@
  * delete. The store applies them; `test/views.test.ts` covers them without Monaco.
  */
 import { Compiler, Filepath, MemoryProjectLayout } from '@dbml/parse';
-import { DEFAULT_VIEW, type DiagramModel, type DiagramView, type Layout } from '@relvista/core';
+import {
+  DEFAULT_VIEW,
+  renameViewSettings,
+  type DiagramModel,
+  type DiagramView,
+  type Layout,
+} from '@relvista/core';
 import type { ViewOp } from '../edits/dbmlEdits.js';
 
 /** What a DiagramView lists, as the editor dialog shows it. */
@@ -281,21 +287,26 @@ export function removeFromViewOp(
 
 /**
  * The layout after view ops: a renamed view's `views[old]` entry moves to the new name (replacing
- * nothing that exists), a deleted view's entry goes. Same object when nothing changes.
+ * nothing that exists), a deleted view's entry goes; its own settings (detail level) follow the
+ * same way. Same object when nothing changes.
  */
 export function layoutAfterViewOps(layout: Layout | null, ops: readonly ViewOp[]): Layout | null {
   if (!layout) return layout;
   let views = layout.views;
+  let out = layout;
   for (const op of ops) {
     const renamed = op.op === 'update' && !!op.newName && op.newName !== op.name;
-    if ((op.op !== 'delete' && !renamed) || !Object.hasOwn(views, op.name)) continue;
+    if (op.op !== 'delete' && !renamed) continue;
+    out = renameViewSettings(out, op.name, renamed ? op.newName! : null);
+    if (!Object.hasOwn(views, op.name)) continue;
     const next = { ...views };
     const entry = next[op.name]!;
     delete next[op.name];
     if (renamed) next[op.newName!] = entry;
     views = next;
   }
-  return views === layout.views ? layout : { ...layout, views };
+  if (views === layout.views) return out;
+  return { ...out, views };
 }
 
 /** The open view after ops: follows a rename, falls back to all tables when deleted. */

@@ -46,6 +46,14 @@ describe('parseDbmlMeta', () => {
     });
   });
 
+  it('reads frozen as a flag: frozen, frozen=false', () => {
+    expect(parseDbmlMeta('frozen')).toEqual({ frozen: true });
+    expect(parseDbmlMeta('frozen=false')).toEqual({ frozen: false });
+    expect(parseDbmlMeta("frozen='no' title=A")).toEqual({ frozen: false, title: 'A' });
+    expect(parseDbmlMeta('frozen=true ssr=false')).toEqual({ frozen: true, ssr: false });
+    expect(parseDbmlMeta('title="A"')).toEqual({ title: 'A' });
+  });
+
   it('handles empty input, false flags and unknown keys', () => {
     expect(parseDbmlMeta(undefined)).toEqual({});
     expect(parseDbmlMeta('')).toEqual({});
@@ -71,6 +79,7 @@ describe('validateThemeConfig', () => {
       detailLevel: 'keys',
       palette: 'relvista',
       ssr: false,
+      frozen: false,
     };
     expect(validateThemeConfig({ validate, themeConfig: { dbml } as never })).toEqual({ dbml });
   });
@@ -119,6 +128,22 @@ describe('validateThemeConfig', () => {
     ).toThrow();
   });
 
+  it('freezes diagrams by default; frozen accepts false, nothing but booleans', () => {
+    expect(DEFAULT_THEME_CONFIG.dbml.frozen).toBe(true);
+    expect(validateThemeConfig({ validate, themeConfig: {} as never }).dbml.frozen).toBe(true);
+    const off = validateThemeConfig({
+      validate,
+      themeConfig: { dbml: { frozen: false } } as never,
+    });
+    expect(off.dbml).toEqual({ ...DEFAULT_THEME_CONFIG.dbml, frozen: false });
+    for (const frozen of ['no', 1, null])
+      expect(() =>
+        validateThemeConfig({ validate, themeConfig: { dbml: { frozen } } as never }),
+      ).toThrow();
+    // Its toolbar item, right after Fit.
+    expect(TOOLBAR_ITEMS.indexOf('lock')).toBe(TOOLBAR_ITEMS.indexOf('fit') + 1);
+  });
+
   it("follows the site's colours by default", () => {
     const out = validateThemeConfig({ validate, themeConfig: {} as never });
     expect(out.dbml.palette).toBe('site');
@@ -165,30 +190,72 @@ describe('pluginRelvista', () => {
     expect(rule.resourceQuery!.test('?relvista-worker')).toBe(true);
   });
 
-  it('puts the theme code shared by page chunks into one chunk (client only)', () => {
+  it('puts the theme code shared by chunks into one chunk, the MDX code hook aside', () => {
+    type Module = { resource?: string };
+    type Graph = { getIncomingConnections(m: Module): Array<{ originModule: Module | null }> };
     type Group = {
-      name: string;
+      name?: string;
       chunks: string;
       minChunks: number;
       minSize: number;
       priority: number;
-      test(m: { resource?: string }): boolean;
+      test(m: Module, ctx?: { moduleGraph?: Partial<Graph> }): boolean;
     };
     type Cfg = { optimization?: { splitChunks: { cacheGroups: Record<string, Group> } } };
     const client = plugin.configureWebpack?.({} as never, false, {} as never, {} as never) as Cfg;
-    const group = client.optimization!.splitChunks.cacheGroups.relvistaTheme!;
+    const groups = client.optimization!.splitChunks.cacheGroups;
+    const group = groups['relvistaTheme']!;
     expect(group).toMatchObject({ name: 'relvista-theme', chunks: 'async', minChunks: 2 });
     expect(group.minSize).toBe(0);
     // Between Docusaurus' `common` (40) and `styles` (50) groups.
     expect(group.priority).toBeGreaterThan(40);
     expect(group.priority).toBeLessThan(50);
     const lib = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
-    const theme = join(lib, 'theme', 'DbmlDiagram', 'index.js');
+    const at = (...path: string[]) => ({ resource: join(lib, ...path) });
+    const theme = at('theme', 'DbmlDiagram', 'index.js');
     // The test runs from src/ (the plugin's own directory): its modules match, others do not.
-    expect(group.test({ resource: theme })).toBe(true);
+    expect(group.test(theme)).toBe(true);
+    expect(group.test(at('client', 'DbmlFence.js'))).toBe(true);
     expect(group.test({ resource: `${lib}-other${sep}theme.js` })).toBe(false);
     expect(group.test({ resource: '/x/node_modules/react/index.js' })).toBe(false);
     expect(group.test({})).toBe(false);
+    // The MDX `code` hook stays with Docusaurus' MDX components, on every page.
+    expect(group.test(at('theme', 'MDXComponents', 'Code', 'index.js'))).toBe(false);
+    expect(group.test(at('client', 'fence.js'))).toBe(false);
+    // The ELK worker's URL goes with the theme code.
+    const worker = '/x/node_modules/elkjs/lib/elk-worker.min.js?relvista-worker';
+    expect(group.test({ resource: worker })).toBe(true);
+    expect(group.test({ resource: '/x/node_modules/elkjs/lib/elk.bundled.js' })).toBe(false);
+
+    // What the theme code imports (Docusaurus' Tabs, …) is shared once, below the vendor chunks.
+    const deps = groups['relvistaThemeDeps']!;
+    expect(deps).toMatchObject({ chunks: 'async', minChunks: 2, minSize: 0 });
+    expect(deps.name).toBeUndefined();
+    expect(deps.priority).toBeLessThan(-10);
+    const tabs = { resource: '/x/node_modules/@docusaurus/theme-classic/lib/theme/Tabs/index.js' };
+    const tabsUtils = { resource: '/x/node_modules/@docusaurus/theme-common/lib/tabsUtils.js' };
+    const page = { resource: '/site/docs/page.mdx' };
+    const mdxCode = { resource: '/x/node_modules/@docusaurus/theme-classic/MDXComponents/Code.js' };
+    const importers = new Map<Module, Module[]>([
+      [tabs, [theme, page]],
+      [tabsUtils, [tabs]],
+      [mdxCode, [at('theme', 'MDXComponents', 'Code', 'index.js')]],
+      [page, []],
+    ]);
+    const moduleGraph: Graph = {
+      getIncomingConnections: (m) =>
+        (importers.get(m) ?? []).map((originModule) => ({ originModule })),
+    };
+    expect(deps.test(tabs, { moduleGraph })).toBe(true);
+    expect(deps.test(tabsUtils, { moduleGraph })).toBe(true);
+    expect(deps.test(page, { moduleGraph })).toBe(false);
+    // Not what only the hook imports, and never the plugin's own modules.
+    expect(deps.test(mdxCode, { moduleGraph })).toBe(false);
+    expect(deps.test(theme, { moduleGraph })).toBe(false);
+    // A bundler without the module graph (or without this method of it): nothing.
+    expect(deps.test(tabs)).toBe(false);
+    expect(deps.test(tabs, { moduleGraph: {} })).toBe(false);
+
     const context = {
       siteDir: '/site',
       generatedFilesDir: mkdtempSync(join(tmpdir(), 'relvista-gen-')),
@@ -202,6 +269,37 @@ describe('pluginRelvista', () => {
       {} as never,
     ) as Cfg;
     expect(server.optimization).toBeUndefined();
+  });
+
+  it('makes pages with a dbml fence load the fence component (loaders/fence-import)', () => {
+    type Rule = {
+      resource?: RegExp;
+      enforce?: string;
+      use?: Array<{ loader: string; options?: { server?: boolean } }>;
+    };
+    type Cfg = { module: { rules: Rule[] } };
+    const context = {
+      siteDir: '/site',
+      generatedFilesDir: mkdtempSync(join(tmpdir(), 'relvista-gen-')),
+      baseUrl: '/',
+      siteConfig: { staticDirectories: ['static'] },
+    } as unknown as LoadContext;
+    for (const isServer of [false, true]) {
+      const config = pluginRelvista(context).configureWebpack?.(
+        {} as never,
+        isServer,
+        {} as never,
+        {} as never,
+      ) as Cfg;
+      const rule = config.module.rules.find((r) => r.use?.[0]?.loader.includes('fence-import'))!;
+      // After the site's MDX and JS loaders, for every .md and .mdx module.
+      expect(rule.enforce).toBe('post');
+      expect(rule.resource!.test('/site/docs/a.mdx')).toBe(true);
+      expect(rule.resource!.test('C:\\site\\docs\\A.MD')).toBe(true);
+      expect(rule.resource!.test('/site/src/pages/a.tsx')).toBe(false);
+      expect(rule.use![0]!.loader).toMatch(/loaders[/\\]fence-import\.js$/);
+      expect(rule.use![0]!.options).toEqual({ server: isServer });
+    }
   });
 
   it('aliases relvista-ssr-files: a generated server module, a client stub', () => {

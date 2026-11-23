@@ -9,6 +9,8 @@ import {
   neighborhood,
   resolveTableRef,
   tableTitle,
+  viewDetailLevel,
+  withViewDetailLevel,
   type DetailLevel,
   type DiagramModel,
   type Layout,
@@ -50,26 +52,40 @@ export const QUIET_MS = 600;
 export const MIRROR_MS = 300;
 
 /**
- * `layout` with `settings.detailLevel` set to `level` ('all' removes the key, and an empty
- * `settings` object with it). Returns `layout` itself when nothing changes, so the caller can skip
- * the history step.
+ * `layout` with the detail level of `view` set to `level`. The default view writes
+ * `settings.detailLevel` ('all' removes the key, and an empty `settings` object with it). A named
+ * view writes its own level (`settings["x-relvista-view-settings"]`); a level equal to the
+ * diagram-wide one removes the view's own, so the view follows the default again. Returns `layout`
+ * itself when nothing changes, so the caller can skip the history step.
  */
-export function withDetailLevel(layout: Layout | null, level: DetailLevel): Layout | null {
-  const current = layout?.settings?.detailLevel ?? 'all';
-  if (current === level && (level !== 'all' || layout?.settings?.detailLevel === undefined))
-    return layout;
-  const base = layout ?? emptyLayout();
-  const settings = { ...(base.settings ?? {}) };
-  if (level === 'all') delete settings.detailLevel;
-  else settings.detailLevel = level;
-  const next: Layout = { ...base, settings };
-  if (Object.keys(settings).length === 0) delete next.settings;
-  return next;
+export function withDetailLevel(
+  layout: Layout | null,
+  level: DetailLevel,
+  view: string = DEFAULT_VIEW,
+): Layout | null {
+  if (view === DEFAULT_VIEW) {
+    if (!layout && level === 'all') return layout;
+    return withViewDetailLevel(
+      layout ?? emptyLayout(),
+      DEFAULT_VIEW,
+      level === 'all' ? undefined : level,
+    );
+  }
+  const shared = layout?.settings?.detailLevel ?? 'all';
+  if (!layout && level === shared) return layout;
+  return withViewDetailLevel(layout ?? emptyLayout(), view, level === shared ? undefined : level);
 }
 
-/** Detail level drawn: a deep link's display-only override, else the layout's, else 'all'. */
-export function shownDetail(layout: Layout | null, override: DetailLevel | null): DetailLevel {
-  return override ?? layout?.settings?.detailLevel ?? 'all';
+/**
+ * Detail level drawn: a deep link's display-only override, else the level saved for `view` (its
+ * own, else the diagram-wide one), else 'all'.
+ */
+export function shownDetail(
+  layout: Layout | null,
+  override: DetailLevel | null,
+  view: string = DEFAULT_VIEW,
+): DetailLevel {
+  return override ?? viewDetailLevel(layout, view) ?? 'all';
 }
 
 /** Columns whose type is enum `enumId`: table id → column names. */

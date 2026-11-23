@@ -6,6 +6,7 @@ import {
   selectView,
   subsetModel,
   tableTitle,
+  viewDetailLevel,
   type Box,
   type DetailLevel,
   type DiagramGeometry,
@@ -46,7 +47,8 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { renderDiagramSvgString } from '../export/svgString.js';
+import { domMarkup } from '../export/domMarkup.js';
+import { svgDocument } from '../export/svgDocument.js';
 import {
   computeBounds,
   computeGroups,
@@ -87,6 +89,7 @@ import {
   canvasFirstView,
   minimapAlwaysShown,
 } from './frame.js';
+import { reuseSets, reuseUnchanged } from './stable.js';
 import { nodeTypes, type FlowNode, type GroupFlowNode } from '../viewer/nodes.js';
 import { edgeTypes, type RefFlowEdge } from '../viewer/RefEdge.js';
 import { SideCard } from '../viewer/SideCard.js';
@@ -155,7 +158,7 @@ export interface DiagramCanvasProps {
   draggable?: boolean;
   /** Default 'light'. */
   colorMode?: ColorMode;
-  /** Default layout.settings.detailLevel ?? 'all'. */
+  /** Default: the view's saved level (`viewDetailLevel`), else layout.settings.detailLevel, else 'all'. */
   detailLevel?: DetailLevel;
   /** Default layout.settings.theme.edgeStyle ?? 'orthogonal'. */
   edgeStyle?: EdgeStyle;
@@ -291,6 +294,12 @@ export interface CanvasInternalProps extends DiagramCanvasProps {
   onGeometry?: (geometry: DiagramGeometry | null) => void;
   /** The handle under another name: React 18 strips a `ref` prop from function components. */
   handleRef?: Ref<DiagramCanvasHandle>;
+  /**
+   * Read-only canvases (DbmlViewer `frozen`): the arrangement is fixed. Nothing can be dragged
+   * (whatever `draggable` says) and groups cannot be collapsed or expanded. Turning it on drops
+   * the local drags and collapses, so the arrangement of `layout` shows again; the viewport stays.
+   */
+  locked?: boolean;
 }
 
 export {
@@ -339,11 +348,21 @@ function setOwn<T>(obj: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(obj, key, { value, enumerable: true, writable: true, configurable: true });
 }
 
+/** No handles: the shared value for nodes that no ref attaches to. */
+const NO_HANDLES: ReadonlySet<string> = new Set();
+
+/**
+ * React Flow nodes of what `model` draws at `geometry`. `handles` maps a node id to the handle ids
+ * its refs attach to; the set is part of the node, so a node whose handles change is a new node,
+ * which React Flow measures again.
+ */
 function buildNodes(
   model: DiagramModel,
   geometry: DiagramGeometry,
   draggable: boolean,
   editable: boolean,
+  handles: ReadonlyMap<string, ReadonlySet<string>>,
+  collapsible: boolean,
 ): FlowNode[] {
   const out: FlowNode[] = [];
   for (const n of model.stickyNotes) {
@@ -378,6 +397,7 @@ function buildNodes(
         w: g.width,
         h: g.height,
         ...(g.detailLevel ? { detail: g.detailLevel } : {}),
+        handles: handles.get(t.id) ?? NO_HANDLES,
       },
       draggable,
       selectable: editable,
@@ -402,7 +422,13 @@ function buildNodes(
       position: { x: box.x, y: box.y },
       width: box.width,
       height: box.height,
-      data: { group: g, w: box.width, h: box.height, memberNames },
+      data: {
+        group: g,
+        w: box.width,
+        h: box.height,
+        memberNames,
+        handles: handles.get(g.id) ?? NO_HANDLES,
+      },
       draggable,
       selectable: editable,
       connectable: false,
@@ -410,7 +436,7 @@ function buildNodes(
       focusable: true,
       ariaLabel: `Group ${g.name}, collapsed (${memberNames.length} ${
         memberNames.length === 1 ? 'table' : 'tables'
-      }). Double-click to expand.`,
+      }).${collapsible ? ' Double-click to expand.' : ''}`,
       domAttributes: { 'data-rv-collapsed': 'true' } as FlowNode['domAttributes'],
     });
   }
@@ -691,8 +717,11 @@ function CanvasInner({
   onEdgeContextMenu,
   onPaneContextMenu,
   onPaneDoubleClick,
+  locked: lockedProp = false,
 }: CanvasInternalProps): ReactElement {
   const rf = useReactFlow<FlowNode, RefFlowEdge>();
+  /** The arrangement is fixed (read-only canvases only). */
+  const locked = lockedProp && !editable;
   const rootRef = useRef<HTMLDivElement>(null);
 
   // --- size (minimap, initial zoom, packing) ------------------------------------------------
@@ -760,17 +789,17 @@ function CanvasInner({
 
   // --- layout --------------------------------------------------------------------------------
   // Read-only canvases collapse groups locally (a double-click): an overlay on the layout prop,
-  // dropped when the layout, document or view changes.
+  // dropped when the layout, document or view changes, and when the canvas is locked.
   const [localLayout, setLocalLayout] = useState<{
     for: Layout | null;
     key: string;
     value: Layout;
   } | null>(null);
   const shownLayout =
-    !editable && localLayout && localLayout.for === layout && localLayout.key === docKey
+    !editable && !locked && localLayout && localLayout.for === layout && localLayout.key === docKey
       ? localLayout.value
       : layout;
-  const detail: DetailLevel = detailLevel ?? layout?.settings?.detailLevel ?? 'all';
+  const detail: DetailLevel = detailLevel ?? viewDetailLevel(layout, viewName) ?? 'all';
   const edges_: EdgeStyle = edgeStyle ?? layout?.settings?.theme?.edgeStyle ?? 'orthogonal';
   const saved = useMemo(
     () => (shownLayout ? mergeViewDefaults(shownLayout, viewName) : null),
@@ -808,13 +837,53 @@ function CanvasInner({
     [focused, geometry],
   );
 
+  // Every row a ref attaches to gets handles on both sides and of both types. The set depends
+  // only on the model, so it is stable while dragging flips sides (React Flow measures the handles
+  // of a node it is given anew, not those of a node it already has).
+  const handlesRef = useRef<ReadonlyMap<string, ReadonlySet<string>>>(new Map());
+  const handles = useMemo(() => {
+    const out = new Map<string, Set<string>>();
+    if (!drawModel || !drawGeometry) return out;
+    const tables = new Map(drawModel.tables.map((t) => [t.id, t]));
+    const shownAs = displayNodeMap(drawModel, drawGeometry);
+    const add = (tableId: string, column: string | undefined) => {
+      const t = tables.get(tableId);
+      if (!t) return;
+      // A member of a collapsed group attaches to the group card's header.
+      const group = shownAs.get(tableId);
+      const node = group ?? tableId;
+      const row =
+        group !== undefined ? -1 : rowIndexOf(t, column, nodeDetail(drawGeometry, tableId, detail));
+      let s = out.get(node);
+      if (!s) out.set(node, (s = new Set()));
+      for (const side of ['left', 'right'] as const)
+        for (const type of ['source', 'target'] as const) s.add(handleId(row, side, type));
+    };
+    for (const r of drawModel.refs) {
+      add(r.from.tableId, r.from.columns[0]);
+      add(r.to.tableId, r.to.columns[0]);
+    }
+    // A node's set keeps its identity while it has the same members, so the node stays the same.
+    return (handlesRef.current = reuseSets(handlesRef.current, out));
+  }, [drawModel, drawGeometry, detail]);
+
   // --- nodes (dragging moves them locally until the change is reported) ----------------------
   // The focus view is display only (its positions are not the saved ones): nothing moves there.
-  const nodeDrag = (editable || draggable) && !focused;
+  // Locked, nothing moves either (React Flow's arrow keys only move draggable nodes).
+  const nodeDrag = (editable || (draggable && !locked)) && !focused;
+  // A node that draws the same as the one shown is kept, with what React Flow added to it (its
+  // measured size and handle positions): a keystroke in a large schema then draws again only the
+  // tables it changed (every compile gives new model objects, and spans shift with the text).
+  const nodesRef = useRef<FlowNode[]>([]);
   const baseNodes = useMemo(
     () =>
-      drawModel && drawGeometry ? buildNodes(drawModel, drawGeometry, nodeDrag, editable) : [],
-    [drawModel, drawGeometry, nodeDrag, editable],
+      drawModel && drawGeometry
+        ? reuseUnchanged(
+            nodesRef.current,
+            buildNodes(drawModel, drawGeometry, nodeDrag, editable, handles, !locked),
+          )
+        : [],
+    [drawModel, drawGeometry, nodeDrag, editable, handles, locked],
   );
   const [nodes, setNodes] = useState<FlowNode[]>(baseNodes);
   const [nodesFor, setNodesFor] = useState(baseNodes);
@@ -822,7 +891,16 @@ function CanvasInner({
     setNodesFor(baseNodes);
     setNodes(baseNodes);
   }
-  const nodesRef = useRef(nodes);
+  // Locking puts the arrangement of `layout` back: local collapses (shownLayout above) and local
+  // drags go. The viewport is left where it is.
+  const [lockedFor, setLockedFor] = useState(locked);
+  if (lockedFor !== locked) {
+    setLockedFor(locked);
+    if (locked) {
+      setLocalLayout(null);
+      setNodes(baseNodes);
+    }
+  }
   nodesRef.current = nodes;
 
   // Selection (editable): kept apart from the nodes so a new layout does not drop it.
@@ -883,39 +961,13 @@ function CanvasInner({
     return r;
   }, [drawModel, current, detail, edges_, dragging]);
 
-  // Every row a ref attaches to gets handles on both sides and of both types. The set depends
-  // only on the model, so it is stable while dragging flips sides (React Flow measures handles
-  // when a node mounts).
-  const handles = useMemo(() => {
-    const out = new Map<string, Set<string>>();
-    if (!drawModel || !drawGeometry) return out;
-    const tables = new Map(drawModel.tables.map((t) => [t.id, t]));
-    const shownAs = displayNodeMap(drawModel, drawGeometry);
-    const add = (tableId: string, column: string | undefined) => {
-      const t = tables.get(tableId);
-      if (!t) return;
-      // A member of a collapsed group attaches to the group card's header.
-      const group = shownAs.get(tableId);
-      const node = group ?? tableId;
-      const row =
-        group !== undefined ? -1 : rowIndexOf(t, column, nodeDetail(drawGeometry, tableId, detail));
-      let s = out.get(node);
-      if (!s) out.set(node, (s = new Set()));
-      for (const side of ['left', 'right'] as const)
-        for (const type of ['source', 'target'] as const) s.add(handleId(row, side, type));
-    };
-    for (const r of drawModel.refs) {
-      add(r.from.tableId, r.from.columns[0]);
-      add(r.to.tableId, r.to.columns[0]);
-    }
-    return out;
-  }, [drawModel, drawGeometry, detail]);
-
   // One edge per drawn line (refs of a collapsed group to the same node merge, §4.2), inactive
-  // lines first so that active refs draw over them.
+  // lines first so that active refs draw over them. Lines drawn as before keep their identity (a
+  // keystroke or a drag re-draws only the lines it moved).
+  const edgesRef = useRef<RefFlowEdge[]>([]);
   const edges = useMemo(() => {
     const edges: RefFlowEdge[] = [];
-    if (!drawModel || !current) return edges;
+    if (!drawModel || !current) return (edgesRef.current = edges);
     const lines = mergeRefs(drawModel, current).flatMap((line) => {
       const p = primaryRef(line, routes);
       return p ? [{ line, ...p, inactive: line.refs.every((r) => r.inactive) }] : [];
@@ -939,7 +991,7 @@ function CanvasInner({
         domAttributes: { 'data-id': ref.id } as RefFlowEdge['domAttributes'],
       });
     }
-    return edges;
+    return (edgesRef.current = reuseUnchanged(edgesRef.current, edges));
   }, [drawModel, current, routes]);
 
   const groupNodes = useMemo<GroupFlowNode[]>(() => {
@@ -1017,6 +1069,8 @@ function CanvasInner({
   const onLeave = useCallback<NodeMouseHandler<FlowNode>>(() => setHovered(null), []);
   const selectedTable =
     sideCard && selected ? drawModel?.tables.find((t) => t.id === selected) : undefined;
+  /** The table whose details card is open (an id: the table object changes on every compile). */
+  const cardId = selectedTable ? selected : null;
 
   // --- resize (rule 2): one 'resize' when the handles are let go --------------------------------
   const resizeStart = useRef(new Map<string, Pos>());
@@ -1049,13 +1103,12 @@ function CanvasInner({
       lit,
       dim: !!hovered,
       hoveredId: hovered,
-      selectedId: selectedTable ? selected : null,
+      selectedId: cardId,
       highlighted: highlight?.ring ?? EMPTY_SET,
       decorations,
       selection,
       // Group header bands always take the pointer: a double-click there collapses the group.
       groupHandles: true,
-      handles,
       resizable: editable && !focused ? resizable : false,
       onResizeStart,
       onResizeEnd,
@@ -1065,14 +1118,12 @@ function CanvasInner({
       detail,
       lit,
       hovered,
-      selected,
-      selectedTable,
+      cardId,
       highlight,
       decorations,
       selection,
       editable,
       focused,
-      handles,
       resizable,
       onResizeStart,
       onResizeEnd,
@@ -1124,6 +1175,7 @@ function CanvasInner({
     viewName,
     resetKey,
     editable,
+    locked,
     detail,
     edges_,
     colorMode,
@@ -1155,6 +1207,7 @@ function CanvasInner({
     viewName,
     resetKey,
     editable,
+    locked,
     detail,
     edges_,
     colorMode,
@@ -1207,10 +1260,11 @@ function CanvasInner({
   );
   /**
    * Collapses or expands a group (rule 1). Editable: one 'settings' change; read-only: a local
-   * overlay on the layout, never reported.
+   * overlay on the layout, never reported; locked: nothing.
    */
   const toggleCollapse = useCallback((id: string) => {
     const L = live.current;
+    if (L.locked) return;
     const box = L.current?.groups[id];
     if (!box) return;
     const collapsed = !box.collapsed;
@@ -1298,9 +1352,11 @@ function CanvasInner({
     [paneEvent],
   );
   const edgeEvent = useCallback((e: ReactMouseEvent, edge: RefFlowEdge): CanvasEdgeEvent | null => {
-    const ref = edge.data?.refModel;
-    if (!ref) return null;
-    return { id: ref.id, span: ref.span ?? null, clientX: e.clientX, clientY: e.clientY };
+    const id = edge.data?.refModel.id;
+    if (id === undefined) return null;
+    // The span from the current model: an edge drawn as before keeps an older compile's ref.
+    const ref = live.current.drawModel?.refs.find((r) => r.id === id) ?? edge.data!.refModel;
+    return { id, span: ref.span ?? null, clientX: e.clientX, clientY: e.clientY };
   }, []);
   const onEdgeClickRf = useCallback<EdgeMouseHandler<RefFlowEdge>>(
     (e, edge) => {
@@ -1897,7 +1953,8 @@ function CanvasInner({
         const L = live.current;
         if (!L.drawModel || !L.current) return null;
         const colorMode = o?.colorMode ?? L.colorMode;
-        return renderDiagramSvgString(L.drawModel, L.current, {
+        // Serialised by the browser: the canvas bundle does without react-dom/server.
+        return svgDocument(domMarkup, L.drawModel, L.current, {
           ...(L.decorations ? { decorations: L.decorations } : {}),
           detailLevel: L.detail,
           edgeStyle: L.edges_,
@@ -1953,6 +2010,7 @@ function CanvasInner({
       data-rv-color-mode={colorMode}
       data-rv-layout={layoutFinal ? 'done' : 'pending'}
       data-rv-editable={editable ? 'true' : 'false'}
+      {...(locked ? { 'data-rv-locked': 'true' } : {})}
       {...(focused ? { 'data-rv-focus': 'true' } : {})}
       style={style}
       onDoubleClick={onRootDoubleClick}

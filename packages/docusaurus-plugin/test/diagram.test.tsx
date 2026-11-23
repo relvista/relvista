@@ -11,6 +11,7 @@ import { renderToPipeableStream } from 'react-dom/server';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { compileDbml, mergeViewDefaults, type Layout } from '@relvista/core';
 import { sourceText } from '../src/source.js';
+import { siteConfig } from './stubs/useDocusaurusContext.js';
 
 const viewerProps: Array<Record<string, unknown>> = [];
 let viewerThrows = false;
@@ -199,6 +200,35 @@ describe('build-time positions (ssrLayout)', () => {
     await settle();
     expect(viewerProps.at(-1)!['ssrLayout']).toBeNull();
     expect(viewerProps.at(-1)!['layout']).toBeNull();
+  });
+});
+
+describe('frozen diagrams (themeConfig.dbml.frozen, the frozen prop)', () => {
+  const SOURCE = 'Table a {\n  id int\n}';
+  afterEach(() => {
+    siteConfig.themeConfig = {};
+  });
+
+  async function frozenOf(app: ReactNode): Promise<unknown> {
+    render(app);
+    await settle();
+    const props = viewerProps.at(-1)!;
+    cleanup();
+    return props['frozen'];
+  }
+
+  it('are frozen by default, with the lock button in the toolbar', async () => {
+    render(<DbmlDiagram value={SOURCE} />);
+    await settle();
+    expect(viewerProps.at(-1)!['frozen']).toBe(true);
+    expect(viewerProps.at(-1)!['toolbar']).toContain('lock');
+  });
+
+  it('the prop wins over themeConfig, both ways', async () => {
+    expect(await frozenOf(<DbmlDiagram value={SOURCE} frozen={false} />)).toBe(false);
+    siteConfig.themeConfig = { dbml: { frozen: false } };
+    expect(await frozenOf(<DbmlDiagram value={SOURCE} />)).toBe(false);
+    expect(await frozenOf(<DbmlDiagram value={SOURCE} frozen />)).toBe(true);
   });
 });
 

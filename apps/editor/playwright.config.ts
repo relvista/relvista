@@ -50,7 +50,15 @@ export default defineConfig({
       name: 'perf',
       testMatch: /perf\.spec\.ts/,
       dependencies: ['chromium', 'mobile'],
-      use: { browserName: 'chromium', viewport: { width: 1360, height: 900 } },
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1360, height: 900 },
+        // The trace of a failed budget keeps its actions and logs, but no DOM snapshots and no
+        // screencast: Playwright takes a snapshot of the whole DOM before and after every action,
+        // on the page's main thread and inside the measured time (about +130 ms per keystroke on
+        // 600 tables), and the screencast delays frames.
+        trace: { mode: 'retain-on-failure', snapshots: false, screenshots: false },
+      },
     },
     {
       name: 'mobile',

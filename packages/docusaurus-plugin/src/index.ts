@@ -40,25 +40,85 @@ export interface PluginOptions {
 
 const libDir = dirname(fileURLToPath(import.meta.url));
 
+/** The MDX `code` hook, on every MDX page (paths relative to `lib/`). */
+const MDX_CODE_HOOK = new Set(['theme/MDXComponents/Code/index.js', 'client/fence.js']);
+
+/** The ELK worker's URL module (`elkjs/lib/elk-worker.min.js?relvista-worker`). */
+const ELK_WORKER_URL = /[\\/]elkjs[\\/]lib[\\/]elk-worker\.min\.js(?:\?|$)/;
+
+/** What the cache groups' `test` reads of a module and of the module graph (webpack 5). */
+interface ChunkModule {
+  resource?: string;
+}
+interface CacheGroupContext {
+  moduleGraph?: {
+    getIncomingConnections?(module: ChunkModule): Iterable<{ originModule: ChunkModule | null }>;
+  };
+}
+
 /**
- * The webpack `splitChunks` cache group that puts the plugin's browser modules used by two or more
- * page chunks into one `relvista-theme` chunk (see `configureWebpack`).
+ * The webpack `splitChunks` cache groups (see `configureWebpack`):
+ *
+ * - `relvista-theme`: the plugin's browser modules used by two or more chunks, in one chunk. Every
+ *   theme module is in the fence component's chunk (`relvista-fence`, which the MDX `code` hook's
+ *   fallback import creates on every site), so one that a page imports (`@theme/DbmlDiagram`) is
+ *   in two chunks and moves here: no page chunk holds theme code, and Docusaurus' prefetch of a
+ *   linked page, which downloads the page's own chunks, never downloads relvista code. The MDX
+ *   `code` hook stays with Docusaurus' MDX components (pages without diagrams never load the
+ *   theme chunk); the ELK worker's URL moves with the theme code that uses it.
+ * - Modules the theme code imports (Docusaurus' Tabs and their helpers, …) and that two or more
+ *   chunks share but which are too small for Docusaurus' vendor chunks: one shared chunk instead
+ *   of a copy in every page chunk that imports `@theme/DbmlDiagram`. It reads the module graph;
+ *   a bundler that does not pass it (`test`'s second argument) only keeps the copies.
  */
-function themeChunkGroup(dir: string = libDir): Record<string, object> {
+function themeChunkGroups(dir: string = libDir): Record<string, object> {
   const prefix = dir.endsWith(sep) ? dir : dir + sep;
+  const own = (m: ChunkModule | null) => !!m?.resource?.startsWith(prefix);
+  const isTheme = (m: ChunkModule | null) =>
+    own(m) && !MDX_CODE_HOOK.has(m!.resource!.slice(prefix.length).split(sep).join('/'));
+  // Whether the theme code imports a module, directly or through modules that are not the
+  // plugin's. Cycles count as no.
+  const reached = new WeakMap<ChunkModule, boolean>();
+  const fromTheme = (m: ChunkModule, ctx: CacheGroupContext | undefined): boolean => {
+    const incoming = ctx?.moduleGraph?.getIncomingConnections;
+    if (typeof incoming !== 'function') return false;
+    const known = reached.get(m);
+    if (known !== undefined) return known;
+    reached.set(m, false);
+    let found = false;
+    for (const { originModule: from } of incoming.call(ctx!.moduleGraph, m)) {
+      if (from && (isTheme(from) || (!own(from) && fromTheme(from, ctx)))) {
+        found = true;
+        break;
+      }
+    }
+    reached.set(m, found);
+    return found;
+  };
   return {
     relvistaTheme: {
       name: 'relvista-theme',
       chunks: 'async',
-      test: (module: { resource?: string }) => !!module.resource?.startsWith(prefix),
+      test: (m: ChunkModule) =>
+        isTheme(m) || (!own(m) && !!m.resource && ELK_WORKER_URL.test(m.resource)),
       minChunks: 2,
       minSize: 0,
       // Above Docusaurus' `common` (40), below its `styles` (50), so CSS stays in one file.
       priority: 45,
       reuseExistingChunk: true,
     },
+    relvistaThemeDeps: {
+      chunks: 'async',
+      test: (m: ChunkModule, ctx?: CacheGroupContext) => !own(m) && fromTheme(m, ctx),
+      minChunks: 2,
+      minSize: 0,
+      // Below Docusaurus' vendor chunks (-10): only what they leave in the page chunks.
+      priority: -15,
+      reuseExistingChunk: true,
+    },
   };
 }
+
 const require = createRequire(import.meta.url);
 
 type PluginEntry = DocusaurusConfig['plugins'][number];
@@ -219,17 +279,32 @@ export default function pluginRelvista(
               resolve: { alias: JSPDF_OPTIONAL_DEPS },
             },
             {
+              // A page with a ```dbml fence loads the fence component itself, before it renders
+              // (loaders/fence-import); the MDX `code` hook on every page is only a stub. After
+              // the site's MDX and JS loaders (`post`). `resource`, not `test`: Docusaurus' MDX
+              // fallback rule excludes the `include` of every rule whose `test` matches `.mdx`, and
+              // this rule has none.
+              resource: /\.mdx?$/i,
+              enforce: 'post',
+              use: [
+                {
+                  loader: join(libDir, 'loaders', 'fence-import.js'),
+                  options: { server: isServer },
+                },
+              ],
+            },
+            {
               // Works around a terser miscompilation in @dbml/parse (see loaders/catch-rename).
               test: /[\\/]@dbml[\\/]parse[\\/]dist[\\/][^\\/]+\.m?js$/,
               use: [{ loader: join(libDir, 'loaders', 'catch-rename.js') }],
             },
           ],
         },
-        // One shared chunk for the theme code (DbmlDiagram, DbmlDiff, the static layer) whatever
-        // the site's page count: Docusaurus' own `common` chunk needs half of all pages to use a
+        // One chunk for the theme code (DbmlDiagram, DbmlDiff, the static layer) whatever the
+        // site's page count: Docusaurus' own `common` chunk needs half of all pages to use a
         // module, so on a site with many pages without diagrams (an API reference) every diagram
         // page's chunk would carry its own copy, and the prefetch of sidebar links downloads them.
-        ...(isServer ? {} : { optimization: { splitChunks: { cacheGroups: themeChunkGroup() } } }),
+        ...(isServer ? {} : { optimization: { splitChunks: { cacheGroups: themeChunkGroups() } } }),
         resolve: {
           alias: {
             'relvista-ssr-files$': ssrFiles,

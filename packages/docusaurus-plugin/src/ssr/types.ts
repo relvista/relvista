@@ -14,7 +14,7 @@ export interface StaticRequest {
   /** Parsed layout file, or the path of one in the site's static directories. */
   layout?: Layout | string | null;
   view?: string;
-  /** The prop / fence meta; the layout's `settings.detailLevel` and then the default apply without it. */
+  /** The prop / fence meta; the view's saved level (`viewDetailLevel`) and then the default apply without it. */
   detailLevel?: DetailLevel;
   defaultDetailLevel: DetailLevel;
   title?: string;

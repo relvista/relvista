@@ -159,9 +159,29 @@
         }
       },
       "patternProperties": {
-        "^x-": {}
+        "^x-": {},
+        "^x-relvista-view-settings$": {
+          "$comment": "Any value is valid, as for every x- key in 1.0: readers ignore entries and values they do not understand, so files written by other 1.x versions always load. The viewSettings branch only gives editors completions and descriptions.",
+          "anyOf": [{ "$ref": "#/$defs/viewSettings" }, true]
+        }
       },
       "additionalProperties": false
+    },
+    "viewSettings": {
+      "description": "Display settings of named views, keyed by view name (\"*\" is not used: the default view uses the settings themselves). The shape relvista writes; malformed or unknown entries are accepted and ignored. An extension key, so relvista 1.0 keeps it unread. A view without an entry uses the diagram-wide settings.",
+      "type": "object",
+      "propertyNames": { "minLength": 1, "not": { "const": "*" } },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "detailLevel": {
+            "description": "Which columns tables show in this view. Overrides settings.detailLevel.",
+            "type": "string",
+            "enum": ["all", "keys", "names"]
+          }
+        },
+        "additionalProperties": false
+      }
     }
   }
 }

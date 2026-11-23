@@ -5,7 +5,6 @@
  * container: focus stays in it, Esc closes it, focus returns where it was.
  */
 import { useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
-import { DEFAULT_VIEW, selectView, type DiagramModel } from '@relvista/core';
 import type { PdfOptions } from '../export/pdf/index.js';
 import { MAX_PDF_PAGES, defaultPaper, type PaperSize, type TilePlan } from '../export/pdf/plan.js';
 import { CloseIcon } from '../viewer/icons.js';
@@ -40,14 +39,7 @@ export interface PdfDialogProps {
   className?: string;
 }
 
-/**
- * True when `view` of `model` draws nothing (no tables and no sticky notes): a PDF page of it would
- * be blank. '*' is the whole model; an unknown view name is not empty (it shows all tables).
- */
-export function isViewEmpty(model: DiagramModel, view: string): boolean {
-  const m = view === DEFAULT_VIEW ? model : (selectView(model, view) ?? model);
-  return m.tables.length === 0 && m.stickyNotes.length === 0;
-}
+export { isViewEmpty } from './viewEmpty.js';
 
 function emptyLeftOut(n: number): string {
   return n ? `, ${n} empty ${n === 1 ? 'view' : 'views'} left out` : '';

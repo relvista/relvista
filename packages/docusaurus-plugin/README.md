@@ -28,6 +28,12 @@ Requires Docusaurus 3.6 or later with the classic theme (tested with 3.6 and 3.1
 [`@relvista/renderer`](https://www.npmjs.com/package/@relvista/renderer) and
 [`@relvista/core`](https://www.npmjs.com/package/@relvista/core) with it.
 
+A fresh install of Docusaurus 3.6 to 3.10.0 does not build, with or without relvista: today's
+webpack rejects the options of their progress bar (`ValidationError: Invalid options object.
+Progress Plugin has been initialized…`). Upgrade Docusaurus to 3.10.1 or later, use its faster
+bundler (`@docusaurus/faster`), or pin webpack with `"overrides": { "webpack": "5.95.0" }` in
+`package.json` (Yarn: `resolutions`, pnpm: `pnpm.overrides`).
+
 ```ts title="docusaurus.config.ts"
 export default {
   plugins: ['@relvista/docusaurus-plugin'], // or [['@relvista/docusaurus-plugin', { highlight: false }]]
@@ -35,9 +41,10 @@ export default {
     dbml: {
       height: 480, // default diagram height: px, or any CSS length
       detailLevel: 'all', // 'all' | 'keys' | 'names'
-      toolbar: ['view', 'zoom', 'fit', 'fullscreen', 'export', 'print', 'open-in-editor'],
+      toolbar: ['view', 'zoom', 'fit', 'lock', 'fullscreen', 'export', 'print', 'open-in-editor'],
       palette: 'site', // 'site': your Infima colours and fonts; 'relvista': relvista's own
       ssr: true, // draw each diagram as a static SVG at build time (default true)
+      frozen: true, // readers unlock a diagram to move tables (default true; false: as in 1.0)
       // editorUrl: false, // hides "Open in editor" (default: the hosted relvista editor)
     },
   },
@@ -78,6 +85,7 @@ Table customers {
 | `detail` | `all`, `keys` or `names`                                     |
 | `static` | Show the fence as highlighted DBML code instead of a diagram |
 | `ssr`    | `ssr=false` skips the build-time picture for this fence      |
+| `frozen` | `frozen=false`: readers drag tables right away (no lock)     |
 
 ## Component
 
@@ -96,10 +104,24 @@ import billing from './db/billing.dbml';
 
 Props: `value` (string or `{ files, entry }`), `src` (URL, `baseUrl` is added), `layout` (object or URL),
 `view`, `height`, `title`, `source`, `detailLevel`, `toolbar`, `editorUrl`, `palette`, `ssr`,
-`className`.
+`frozen`, `id`, `className`. `@theme/DbmlDiff` (` ```dbml-diff ` fences) takes `frozen` too.
 
 For TypeScript, add `"@relvista/docusaurus-plugin/client"` to `compilerOptions.types` to type `.dbml`
 imports and `@theme/DbmlDiagram`.
+
+## Frozen diagrams
+
+Diagrams are frozen by default (`themeConfig.dbml.frozen: true`): they show the arrangement you
+gave them (a layout file, or the build-time auto-layout) and readers cannot move tables, notes or
+groups, nor collapse or expand groups. They can still pan, zoom, fit, search, highlight paths,
+focus, change the detail level, open table cards, export, print and copy links. The toolbar's
+`lock` button (**Unlock layout**, after **Fit**) lets a reader rearrange a diagram anyway; nothing
+is saved, and **Lock layout** puts everything back. The build-time picture is the same either way.
+
+This is new in 1.1. For the 1.0 behaviour (tables drag right away, no lock button) set
+`themeConfig.dbml.frozen: false`, or `frozen=false` on a fence and `frozen={false}` on a component
+for one diagram; `frozen` / `frozen={true}` freezes one diagram on a site that turned it off. A
+site with its own `toolbar` list needs `'lock'` in it for readers to unlock its diagrams.
 
 ## Colours and fonts
 
@@ -169,9 +191,16 @@ for one fence with `ssr=false`.
   relvista does not wrap `CodeBlock`: that is where `@docusaurus/theme-live-codeblock` and sites'
   own `swizzle --wrap` wrappers hook in, and only one plugin's `@theme-init` wrapper of a component
   can be active. `@theme/DbmlDiagram` is a new component. No other theme component is swizzled.
+- Pages without diagrams load no diagram code. The wrapper above is a stub on every MDX page; a
+  small webpack loader makes each page with a ` ```dbml ` or ` ```dbml-diff ` fence load the
+  diagram component before it renders (a top-level `await import()`, so the page hydrates what the
+  server rendered), and the theme code sits in its own chunks, never in a page's chunk: the
+  prefetch of links to diagram pages does not download it either.
 - During server rendering the static SVG (or, with `ssr` off, a placeholder of the final height)
-  is emitted; the viewer (React Flow, `@dbml/parse`, ELK auto-layout) loads in a separate chunk
-  only on pages that show a diagram.
+  is emitted; the viewer (React Flow, `@dbml/parse`) loads in a separate chunk after the page
+  hydrates, only on pages that show a diagram. ELK (in a Web Worker) loads only for a diagram the
+  build did not lay out, the PDF dialog and jsPDF on the first PDF export, PNG export and print on
+  use.
 - A small webpack loader renames shadowing `catch` parameters in `@dbml/parse`'s bundle, working around
   a terser miscompilation that otherwise breaks `use` statements in production builds.
 

@@ -640,6 +640,17 @@ export function planTiles(
   has such characters, that page is rendered as a 3× PNG image (existing `exportPng` path)
   instead, and the dialog says "Some text uses characters the PDF fonts lack; pages are
   embedded as images". Recorded in §13 as a follow-up (embedding a Noto subset).
+  **Since 1.1 (§13, decided):** text outside WinAnsi that a bundled font covers is drawn with an
+  embedded subset instead (`export/pdf/unicode.ts`): Noto Sans Regular/Bold (OFL 1.1; Latin,
+  Greek, Cyrillic) and a CJK font (Noto Sans' Latin/Greek/Cyrillic merged with Droid Sans
+  Fallback's CJK Unified Ideographs, kana and full-width forms, Apache 2.0; one weight). Each is a
+  generated module (`fonts/*.ts`, zlib + base64, 0.16 / 0.16 / 2.1 MB; `scripts/pdf-fonts.py`)
+  loaded with `import()` only for a document that needs it; jsPDF subsets it again (Identity-H with
+  a ToUnicode map, so text is extractable). The font is chosen per `<text>` after NFC: Noto Sans
+  if it covers the whole string, else the CJK font, else the page is a raster as before (Arabic,
+  Hebrew — no bidi or shaping in jsPDF —, Hangul, Indic scripts, emoji, CJK Extension A/B,
+  combining marks NFC keeps). `embedFonts: false` restores the 1.0 behaviour; a font that fails to
+  load falls back to raster. `pdfCanDrawText` lets the dialog's note use the same rule.
 - Hard limits: ≤ 200 pages (error otherwise, with a hint to lower the scale).
 - Tests (`test/pdf.test.ts`, jsdom): `planTiles` grids (exact counts for known sizes, overlap,
   orientation choice), `exportPdf` with `compress: false` → page count and `/MediaBox` sizes
@@ -898,6 +909,10 @@ dashes alone on a line) is supported by the MDX `Code` wrapper.
 `@theme/DbmlDiff` and the new `Props` fields (`id`, `ssr`). `configureWebpack`: the jsPDF optional
 dependency aliases (§2) and the `ssr-files` alias (§5.1).
 
+**Since 1.1** ([decision 0007](../decisions/0007-frozen-diagrams.md)): `frozen` (default `true`),
+the `frozen` prop of `DbmlDiagram` / `DbmlDiff` and fence meta `frozen` / `frozen=false`; the
+viewer's `frozen` prop and its `'lock'` toolbar item (after `'fit'`) unlock and re-lock a diagram.
+
 ---
 
 ## 6. Editor (`apps/editor`)
@@ -1137,10 +1152,14 @@ unplaced nodes, ELK not awaited).
 | Drag frame in 14-large                                | no task > 50 ms               | `apps/editor/e2e/perf.spec.ts`    |
 | Keystroke → diagram, 14-large                         | ≤ 250 ms                      | `apps/editor/e2e/perf.spec.ts`    |
 | Keystroke → diagram, 300 tables                       | ≤ 600 ms, no task > 50 ms     | `apps/editor/e2e/perf.spec.ts`    |
+| Open 600 tables (drop → final layout)                 | ≤ 4 s                         | `apps/editor/e2e/perf.spec.ts`    |
+| Keystroke → diagram, 600 tables                       | ≤ 800 ms, compiles in worker  | `apps/editor/e2e/perf.spec.ts`    |
+| Drag in 600 tables (each move, and the release)       | no task > 100 ms              | `apps/editor/e2e/perf.spec.ts`    |
 | Editor first load (unchanged)                         | ≤ 3 s                         | existing                          |
 | PDF, 14-large tiled A4 100 %                          | ≤ 3 s after libraries loaded  | `apps/editor/e2e/pdf.spec.ts`     |
 
-The 300-table fixture is generated in the test (seeded), not committed.
+The 300- and 600-table fixtures are generated in the test (seeded, one generator), not committed.
+The 600-table rows are recorded in §13 ("Recorded by the 1.1 large-schema work").
 
 ---
 
@@ -1243,11 +1262,21 @@ and fixes only wiring. Anything beyond wiring goes back into §13.
 
 ## 13. Open questions (decide during build, record here)
 
-- Embedding a Unicode font subset in PDFs (instead of the raster fallback for non-WinAnsi text).
+- ~~Embedding a Unicode font subset in PDFs (instead of the raster fallback for non-WinAnsi
+  text).~~ Done for Latin, Greek, Cyrillic and CJK (§4.4 "Since 1.1"). Still raster: right-to-left
+  scripts and anything that needs shaping (would need a bidi pass and a shaper such as
+  HarfBuzz-wasm), Hangul (Droid Sans Fallback has no syllables; another font would add megabytes), emoji.
 - Reading git refs from a local `.git` folder opened with the File System Access API (packfiles
   and deltas) — out of v1; hosted URLs only.
 - Per-view detail level (layout-1 has one `settings.detailLevel`); would need `layout-2` or an
-  `x-relvista-view-settings` extension key.
+  `x-relvista-view-settings` extension key. **Decided after 1.0: the extension key**, in
+  `settings` (1.0 rejects unknown keys inside `views[name]` but keeps `settings` `x-*` values
+  unread): `settings["x-relvista-view-settings"][view].detailLevel`, no `layout-2`. Core
+  `viewDetailLevel` / `withViewDetailLevel` / `renameViewSettings`; the editor's detail switch
+  writes the open view (the diagram-wide level removes the view's own); the viewer and plugin
+  start each view at its level (`detailLevel` prop, `detail=` and the toolbar still override; the
+  toolbar choice is dropped on a view switch only when the two views save different levels). The
+  editor PDF export still draws every page at the open view's level.
 - Whether `AUTO_DAGRE_MAX_NODES` should also consider ref density (decided by the wave-1 bench).
 
 Recorded by the wave-1 integration (2026-11-21):
@@ -1313,7 +1342,8 @@ Recorded by the wave-2 integration (2026-11-21):
   the API instance's sidebar metadata is ~18 KB). Accepted: the rest is `main.js` (141 → 166 KB)
   and the route map (2.5 → 9.9 KB) carrying the ~320 generated API routes, and `relvista-theme`
   (8 KB), which arrives with the prefetch of linked diagram pages rather than for the page itself
-  (loading it lazily from the MDX `code` wrapper did not remove it and grew the page chunks).
+  (loading it lazily from the MDX `code` wrapper did not remove it and grew the page chunks;
+  1.1 removed it, see "Recorded by the 1.1 bundle work" below).
   Fewer API pages (`outputFileStrategy: 'modules'`) would cut the route map but make the reference
   pages very long. Pages with diagrams went from 1013 KB to ~670 KB (no ELK in the browser).
   Editor first load: 1549 → ~1600 KB; the Compare, PDF and view-editor dialogs load on first use.
@@ -1402,3 +1432,139 @@ Recorded by the 1.0 release preparation (2026-11-21):
   builds with `stripInternal`; `resolveView`/`viewTableEntries` are `@internal`, so the published
   `.d.ts` no longer import `@dbml/parse` types, whose declarations need `monaco-editor-core` and
   failed consumers with `skipLibCheck: false`.
+
+Recorded for 1.1 (2026-11-22):
+
+- **dagre row post-pass; `AUTO_DAGRE_MAX_NODES = 4`.** The port-aligning dagre pass the wave-1
+  note above anticipated is in (`layout-rows.ts`, [autolayout.md](autolayout.md)); the bench was
+  re-run with the signed-off rule unchanged and gives 4 (95 % on (a)+(c)+(d) up to 4 nodes).
+  Tables: decision 0003, "Re-measurement 2026-11-22".
+
+Recorded by the 1.1 bundle work (2026-11-22, branch `feat/docs-bundle`):
+
+- **No relvista code on pages without diagrams.** Measured as the review-round-3 bundle size above
+  (every script a page downloads until the network is idle, prefetches of linked pages included,
+  `gzip -9`), with each file classified by the bundle manifest the docs build writes
+  (`apps/docs/plugins/bundle-manifest.ts`): a file holds relvista code when it has a module of
+  `@relvista/core`, `@relvista/renderer` or `@relvista/docusaurus-plugin`, or of an npm package
+  that only they import (reachable from the entries only through a relvista module; Docusaurus'
+  own theme modules excepted). CSS is not counted (one global stylesheet). Two pieces are allowed
+  everywhere: the MDX `code` hook (`theme/MDXComponents/Code` + `client/fence`, ~0.5 KB gzip,
+  with Docusaurus' MDX components; relvista hooks the MDX `code` element, which is global, and
+  the hook is what hands a fence to the diagram code) and the DBML Prism grammar (~0.7 KB gzip in
+  `main.js`, a client module: the `highlight` option).
+- **Design.** The MDX `code` wrapper became a stub that renders a registered fence component. A
+  `post` webpack loader on `.md`/`.mdx` (`loaders/fence-import`) appends to each compiled page with
+  a `language-dbml(-diff)` code element: in the browser bundle a top-level
+  `await import(/* relvista-fence */ client/DbmlFence)` and its registration, in the server bundle
+  static imports. The page module becomes an async module, so Docusaurus (which loads route
+  modules with `import()`) waits for the component before rendering or hydrating: the page
+  hydrates what the server rendered, no Suspense on the server path (§5.1). Docusaurus' prefetch
+  (`__webpack_require__.gca`) downloads only a linked route's own named chunks, so the fence chunk
+  and the split `relvista-theme` chunk are never prefetched. The 1.0 attempt failed because the
+  wrapper loaded the theme code itself (it stayed in Docusaurus' MDX components chunk). Without the
+  loader (MDX it did not see) the stub falls back to `lazy()` with the code block as fallback.
+- **Chunks.** `relvista-theme`: the plugin's modules in two or more chunks, now also the ELK worker's
+  URL module; every theme module is in the fence chunk (the stub's fallback import creates it on
+  every site), so whatever a page imports (`@theme/DbmlDiagram`, the gallery) moves there and no
+  page chunk carries theme code. Docusaurus modules the theme imports (Tabs, TabItem, their
+  helpers) went from one vendor chunk (by luck of its 20 KB `minSize`) to a copy per gallery page
+  chunk (+27 KB of prefetch per docs page); a second cache group (`relvistaThemeDeps`, priority
+  -15, reads `moduleGraph.getIncomingConnections`) shares them once; it selects nothing when a
+  bundler does not pass the module graph to `test` (copies, no failure). Rspack (checked with
+  the packed tarballs in a scratch site, `@docusaurus/faster` 3.10.2, Rspack 1.7.12, build and
+  `docusaurus start`): fences, a `dbml-diff` fence and `@theme/DbmlDiagram` render at build time
+  and hydrate, also after client navigation, and the diagram-free page that links to them loads
+  no relvista chunk.
+- **Renderer.** The canvas's `exportSvg` serialises the drawing in the browser
+  (`export/domMarkup`: `createRoot` + `flushSync` + `XMLSerializer`, same document as
+  `renderDiagramSvgString` up to attribute spelling, tested over every example), so
+  `react-dom/server` (~60 KB gzip) left the viewer chunk; PNG export and print still use it, on
+  use. `DbmlViewer` loads the PDF dialog and tile planner when the dialog opens
+  (`viewer/PdfExport`) and `exportPdfWithReport` on export; `isViewEmpty` moved to
+  `nav/viewEmpty` (still exported from `PdfDialog`).
+- **Numbers** (gzip, `apps/docs` production build, Chromium 1360 px):
+
+  | Page                            | Before (1.0, `main`)            | After                  |
+  | ------------------------------- | ------------------------------- | ---------------------- |
+  | `docs/layout-file` (no diagram) | 294,120 total, 8,283 relvista   | 281,134 total, 0       |
+  | `docs/gallery/02-ecommerce`     | 689,892 total, 404,055 relvista | 618,964 total, 334,236 |
+  | `docs/getting-started` (fences) | 689,892 total, 404,055 relvista | 618,490 total, 335,134 |
+
+  After, a diagram page's relvista JavaScript is the vendor chunk (DBML parser, React Flow,
+  dagre, ajv: 259.5 KB), `relvista-viewer` (67 KB), `relvista-theme` (7.7 KB) and, with fences,
+  `relvista-fence` (0.9 KB). The "before" diagram pages carried `react-dom/server` (60 KB) in the
+  vendor chunk.
+
+- **Gate.** `apps/docs/e2e/bundle.spec.ts` (docs e2e, CI): `docs/layout-file`, `docs/editor`,
+  `docs/api/`, `blog`, `third-party-notices` load no relvista module beyond the two allowed ones
+  and no relvista-only npm package; `docs/layout-file` stays under 300 KB in all;
+  `docs/getting-started` and `docs/gallery/02-ecommerce` stay under **345,000 B** of relvista
+  JavaScript and load no jsPDF, svg2pdf.js, ELK, `react-dom/server` or PDF/PNG/print modules.
+- Open: layout validation (ajv + fast-uri, about a fifth of the vendor chunk, roughly 50 KB gzip)
+  ships with every viewer although only `parseLayout` needs it (layout files, share links);
+  moving `parseLayout` out of `layout/layout.ts` and loading it on use, or a standalone
+  (precompiled) ajv validator, would take it out. The search panel and the diff code (~5 KB gzip
+  each) still come with the viewer.
+
+Recorded by the 1.1 large-schema work (2026-11-22, branch `feat/perf-large`):
+
+- **Where the time went** (the perf test's generated 600-table schema, 186 KB, 599 refs; Chromium,
+  1360 × 900, Windows 10, 8 cores; before = `release/1.1`). Keystroke → diagram is the 150 ms
+  debounce, then the compile in the worker (~445 ms, 98 % of it inside `@dbml/parse` 12.1.0, whose
+  query cache recomputes `Filepath.toKey()` and compares the sources on every query), then the
+  canvas. Meanwhile `@dbml/parse`'s completion provider re-parses the whole file on the main
+  thread (~180 ms, from ~80 ms after the keydown), which also holds the debounce timer back by
+  ~110 ms. Before, every compile result drew all 600 cards and 599 ref lines again, twice (each
+  compile gives new model objects, and the spans of everything below an edit shift), and React
+  Flow measured every node again: ~205 + ~115 ms of main thread; a move of the cursor highlight
+  drew every card again too (~80 ms). A drag move cost ~72 ms, ~60 of it Chrome's layerization
+  (`PaintArtifactCompositor::Update`) of the 600 cards and the 599 per-edge `<svg>` React Flow 13
+  creates; letting go drew every line again (~200 + ~170 ms). Opening the file: the first compile
+  runs on the main thread (~560 ms; the file is under `WORKER_MAX_CHARS`), the first render
+  ~480 ms, the browser's layout ~220 ms, the sync dagre layout ~160 ms, then ELK in its worker.
+- **Changes** (renderer; drawings and exports unchanged: the static SVG of every example in four
+  variants and of the 600-table schema is byte-identical). React Flow nodes and edges that draw
+  the same as the ones shown are kept (`canvas/stable.ts`: deep equality that skips `span` keys),
+  with what React Flow added to them (measured size, handle positions), so an edit draws and
+  measures again only the tables and lines it changed. A node's handle set is part of its data:
+  a changed set makes a new node, which React Flow measures. `TableSvg` memoises the card apart
+  from its position and opacity, so dimming on hover draws no card again; the node components keep
+  the card's box object; the context carries the details card's id, not the table object (new on
+  every compile). The ref lines' transparent hit paths are `visibility: hidden`
+  (`pointer-events: stroke` still hit-tests them): painted, they added ~17 ms to every drag frame.
+- **Numbers** (medians of two runs of the perf project; the 600-table open and drag are new
+  measures, run on both versions):
+
+  | Measure                                     | Before                       | After                  |
+  | ------------------------------------------- | ---------------------------- | ---------------------- |
+  | Keystroke → diagram, 14-large               | 225 ms                       | 210 ms                 |
+  | Keystroke → diagram, 300 tables             | 565 ms                       | 463 ms                 |
+  | Long tasks per keystroke, 300 tables        | 3 (~95, ~111, ~53 ms)        | 1 (~92 ms, completion) |
+  | Keystroke → diagram, 600 tables             | 998 ms                       | 759 ms                 |
+  | Long tasks per keystroke, 600 tables        | 4 (~190, ~78, ~205, ~115 ms) | 1 (~180 ms)            |
+  | Open 600 tables: first table / final layout | 1.06 s / 2.83 s              | 1.07 s / 2.79 s        |
+  | Drag move, 600 tables (each)                | ~72 ms                       | ~55 ms                 |
+  | Drag release, 600 tables                    | ~197 + ~170 ms               | 60–88 ms               |
+
+  With the editor e2e's usual trace settings (DOM snapshots) the keystroke medians were 228, 594
+  and 1157 ms before, 215, 470 and 877 ms after. Docs viewer, 600 tables (a page with this schema,
+  not committed): layout done 4.5 → 4.2 s; a hover sweep over the diagram went from nine long
+  tasks of 66–143 ms (every card drawn again) to two or three of 50–63 ms, except that in some runs
+  Chrome's layerization of the dimmed diagram takes ~110 ms a hover change whatever relvista draws.
+
+- **Measuring.** Playwright's own work was inside the measured times: a trace with DOM snapshots
+  serialises the whole DOM before and after every action on the page's main thread (+~130 ms per
+  keystroke on 600 tables, +20–40 ms on 300), its screencast delays frames, and a failing locator
+  `expect` renders an aria snapshot of the page on every retry (0.5–0.75 s of main thread each on
+  600 tables, so "layout done" read 4.1–4.8 s instead of 2.8 s). The perf project now records
+  traces without snapshots and screencast, and the 600-table test waits on page flags.
+- Open: typing in a large schema still has one long task per keystroke, `@dbml/parse`'s completion
+  parse (moving the language service to a worker, or an incremental parse upstream); the compile
+  itself is `@dbml/parse`'s. At 600 tables drag and hover are bound by Chrome's layerization
+  (~45 ms a drag move, 50–110 ms a hover change); one SVG for all ref lines instead of React Flow's
+  one per edge, or markers without their own transforms, would shrink it but change the canvas DOM
+  (markers, the exported SVG too). The first compile of a file under `WORKER_MAX_CHARS` still runs
+  on the main thread. The first moves of a drag that selects a table cost ~190, ~120 and ~120 ms
+  (selection ring, the node lifted above the others); the test times a second drag of the same
+  table. §7's 14-large drag-frame row has no test yet.
