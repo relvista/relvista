@@ -1,6 +1,6 @@
 {
   "name": "@relvista/renderer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "React SVG renderer, interactive viewer and export for relvista DBML diagrams",
   "keywords": [
     "dbml",

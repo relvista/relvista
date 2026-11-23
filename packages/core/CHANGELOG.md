@@ -1,5 +1,19 @@
 # @relvista/core
 
+## 1.1.0
+
+### Minor Changes
+
+- 7e2c7ab: The dagre layout (`layoutDiagramSync`, and `engine: 'auto'` for small parts of a schema) now lines up the key and foreign-key rows each ref joins, left to right, and `engine: 'auto'` keeps connected components of up to 4 tables on dagre (`AUTO_DAGRE_MAX_NODES`, was 3).
+- 7be176e: Per-view detail level. A layout file can give a named view its own detail level under
+  `settings["x-relvista-view-settings"]` (an extension key, so relvista 1.0 still loads these files).
+  Core adds `viewDetailLevel`, `withViewDetailLevel`, `renameViewSettings`, `VIEW_SETTINGS_KEY` and the
+  `ViewSettings` type. The layout schema describes the key but, like every `x-` key, accepts any
+  value: entries relvista cannot read are ignored and kept. `DbmlViewer` and `DiagramCanvas` start
+  each view at its saved level (the `detailLevel` prop and the toolbar still override it), and
+  `DbmlViewer` takes a new `defaultDetailLevel` prop. Docs diagrams with `view=` draw the view's level,
+  at build time too.
+
 ## 1.0.0
 
 ### Major Changes
