@@ -1,0 +1,7 @@
+/* Frozen diagrams (DbmlViewer `frozen`, docs/decisions/0007-frozen-diagrams.md): while the layout
+   is locked (data-rv-locked on the canvas), nothing invites a drag or a double-click. Tables and
+   notes lose the grab cursor on their own (React Flow drops their `draggable` class). */
+.rv-canvas[data-rv-locked='true'] .rv-group-drag,
+.rv-canvas[data-rv-locked='true'] .react-flow__node-rvCollapsedGroup {
+  cursor: default;
+}

@@ -72,7 +72,8 @@ export const DEFAULT_EDITOR_URL = 'https://relvista.org/editor/';
 
 /**
  * Every toolbar item, in the renderer's default order (`DEFAULT_TOOLBAR`, docs/design/phase3-v1.md
- * §4.7; a test keeps them equal). `link` shows only for diagrams with an anchor.
+ * §4.7; a test keeps them equal). `link` shows only for diagrams with an anchor, `lock` only for
+ * frozen diagrams.
  */
 export const TOOLBAR_ITEMS: readonly ToolbarItem[] = [
   'view',
@@ -80,6 +81,7 @@ export const TOOLBAR_ITEMS: readonly ToolbarItem[] = [
   'detail',
   'zoom',
   'fit',
+  'lock',
   'fullscreen',
   'export',
   'print',

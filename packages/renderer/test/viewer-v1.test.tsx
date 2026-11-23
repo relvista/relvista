@@ -198,6 +198,7 @@ describe('DbmlViewer v1: toolbar', () => {
       'detail',
       'zoom',
       'fit',
+      'lock',
       'fullscreen',
       'export',
       'print',
@@ -208,6 +209,8 @@ describe('DbmlViewer v1: toolbar', () => {
     expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Detail level' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Copy link to this diagram' })).toBeNull();
+    // Not frozen: nothing to unlock (test/frozen.test.tsx).
+    expect(screen.queryByRole('button', { name: 'Unlock layout' })).toBeNull();
   });
 
   it('moves between buttons with the arrow keys and opens search with / and Mod+K', async () => {

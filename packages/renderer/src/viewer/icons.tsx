@@ -132,3 +132,17 @@ export const CheckIcon = () => (
     <path d="m3.5 8.5 3 3 6-7" />
   </Icon>
 );
+/** Layout locked (frozen diagram). */
+export const LockIcon = () => (
+  <Icon>
+    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 10v1.5" />
+  </Icon>
+);
+/** Layout unlocked: the shackle open. */
+export const UnlockIcon = () => (
+  <Icon>
+    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 4.9-.7M8 10v1.5" />
+  </Icon>
+);

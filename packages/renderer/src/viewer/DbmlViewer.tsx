@@ -87,8 +87,21 @@ export interface DbmlViewerProps {
   editorUrl?: string;
   /** Called with the compile diagnostics whenever the source is compiled. */
   onDiagnostics?: (diagnostics: Diagnostic[]) => void;
-  /** Nodes can be dragged (positions are not persisted). Default true. */
+  /**
+   * Nodes can be dragged (positions are not persisted). Default true. `false` wins over `frozen`:
+   * nothing can ever be dragged and the toolbar has no lock button.
+   */
   draggable?: boolean;
+  /**
+   * Start with the layout locked, as arranged in `layout` (a docs diagram its author laid out):
+   * tables, notes and groups cannot be moved (pointer, touch or keyboard) and groups cannot be
+   * collapsed or expanded. Panning, zooming, search, paths, focus, detail level, the details card,
+   * export, print and links work as usual. The toolbar's `'lock'` button unlocks the layout for
+   * this reader (nothing is saved); locking it again puts back the arrangement of `layout` (its
+   * positions and collapsed groups) and leaves the viewport where it is. With
+   * `draggable={false}` there is no lock button and the layout stays locked. Default false.
+   */
+  frozen?: boolean;
   /**
    * Overrides the layout's detail level, for every view (the toolbar's Detail menu can still
    * change it). Without it, each view shows its saved level (`viewDetailLevel`).
@@ -346,6 +359,7 @@ export function DbmlViewer({
   editorUrl,
   onDiagnostics,
   draggable = true,
+  frozen = false,
   detailLevel,
   defaultDetailLevel,
   edgeStyle,
@@ -744,6 +758,12 @@ export function DbmlViewer({
   // --- layout given to the canvas: build-time positions where the layout has none -------------
   const canvasLayout = useMemo(() => withSsrPositions(layout, ssrLayout), [layout, ssrLayout]);
 
+  // --- frozen: locked until the reader unlocks it (never saved; `frozen` changing resets it) ---
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => setUnlocked(false), [frozen]);
+  const locked = frozen && !unlocked;
+  const toggleLock = useCallback(() => setUnlocked((u) => !u), []);
+
   // --- export / print ------------------------------------------------------------------------
   const fileName = exportBaseName((title ?? model?.project?.name ?? 'diagram').trim()) || 'diagram';
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -1056,6 +1076,7 @@ export function DbmlViewer({
           onUnknownView={onUnknownView}
           layout={canvasLayout}
           draggable={draggable}
+          locked={locked}
           colorMode={colorMode}
           detailLevel={detail}
           {...(edgeStyle ? { edgeStyle } : {})}
@@ -1101,6 +1122,8 @@ export function DbmlViewer({
           detail={detail}
           onDetailChange={setUserDetail}
           {...(anchor ? { onCopyLink: () => void copyLink() } : {})}
+          // Nothing to unlock unless frozen, nor when nodes can never be dragged.
+          {...(frozen && draggable ? { locked, onToggleLock: toggleLock } : {})}
           pdf={!!model}
         />
       ) : null}
