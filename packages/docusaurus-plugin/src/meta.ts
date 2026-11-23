@@ -12,6 +12,11 @@ export interface DbmlFenceMeta {
   detailLevel?: 'all' | 'keys' | 'names';
   /** Draw the diagram into the page's HTML at build time (`ssr=false` turns it off). */
   ssr?: boolean;
+  /**
+   * Lock the layout (`frozen`) or let readers drag tables right away (`frozen=false`). Overrides
+   * `themeConfig.dbml.frozen`.
+   */
+  frozen?: boolean;
   /** The diagram's anchor on the page (`id="billing"` → `#billing`). */
   id?: string;
   /** ` ```dbml-diff ` only: show the change list under the diagram (`summary=false` hides it). */
@@ -29,7 +34,7 @@ function flag(raw: string | undefined): boolean {
 }
 
 /**
- * Parses `title="Billing" height=500 view="Billing" layout="/shop.layout.json" source ssr=false id="billing"`.
+ * Parses `title="Billing" height=500 view="Billing" layout="/shop.layout.json" source ssr=false frozen=false id="billing"`.
  * Values may be double-quoted, single-quoted or bare; a bare key is a `true` flag. Unknown keys are
  * ignored, so other remark plugins can share the meta string.
  */
@@ -62,6 +67,9 @@ export function parseDbmlMeta(metastring: string | undefined | null): DbmlFenceM
         break;
       case 'ssr':
         out.ssr = flag(raw);
+        break;
+      case 'frozen':
+        out.frozen = flag(raw);
         break;
       case 'id':
         if (raw && raw.trim()) out.id = raw.trim();

@@ -42,8 +42,18 @@ export function Schema() {
 
 `DbmlViewer` keeps the last valid diagram while the DBML has errors, lays tables out (dagre first,
 then ELK in a worker), honours saved positions from a `layout` file, switches DiagramViews and has
-a toolbar for zoom, fit, fullscreen, export, print and "Open in editor". It needs a browser: on the
-server, render `DiagramSvg` instead.
+a toolbar for search, detail level, zoom, fit, fullscreen, export, print, links and "Open in
+editor". It needs a browser: on the server, render `DiagramSvg` instead.
+
+Readers can drag tables (`draggable`, default true; nothing is saved). With `frozen` the layout
+starts locked instead: no dragging (pointer, touch or keyboard) and no collapsing or expanding of
+groups, while panning, zooming, search and the rest work. The toolbar's `'lock'` item (in
+`DEFAULT_TOOLBAR`, after `'fit'`) unlocks it, and locking again puts back the arrangement of
+`layout` without moving the view. `draggable={false}` wins: no lock button, never movable.
+
+```tsx
+<DbmlViewer source={dbml} layout={layout} frozen />
+```
 
 ## Static SVG (server-side rendering)
 

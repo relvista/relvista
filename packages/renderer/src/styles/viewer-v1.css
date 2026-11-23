@@ -21,9 +21,9 @@
   z-index: 9;
 }
 
-/* The toolbar has more buttons now: the title chip stops short of it. */
+/* The toolbar has more buttons now (lock too, since 1.1): the title chip stops short of it. */
 .rv-viewer:not(.rv-viewer--narrow) > .rv-title {
-  max-width: max(120px, calc(100% - 500px));
+  max-width: max(120px, calc(100% - 530px));
 }
 
 /* Focus chip and diff legend: top left, under the title. */

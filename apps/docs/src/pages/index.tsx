@@ -23,8 +23,8 @@ const FEATURES: Array<{ title: string; body: ReactNode }> = [
     title: 'A fence is enough',
     body: (
       <>
-        Write a <code>```dbml</code> block in Markdown and get a diagram you can zoom, pan, drag,
-        open fullscreen, print and export as SVG or PNG.
+        Write a <code>```dbml</code> block in Markdown and get a diagram you can zoom, pan, search,
+        open fullscreen, print and export as SVG or PNG, frozen the way you arranged it.
       </>
     ),
   },
@@ -147,8 +147,8 @@ export default function Home(): ReactNode {
             <DbmlDiagram value={ecommerce} title="storefront · 02-ecommerce.dbml" height={560} />
           </div>
           <p className={styles.heroHint}>
-            Live diagram: drag tables, hover to trace relationships, click a table for details, try
-            fullscreen and export in the toolbar.
+            Live diagram: hover to trace relationships, click a table for details, unlock the layout
+            in the toolbar to drag tables, try fullscreen and export.
           </p>
         </div>
       </header>

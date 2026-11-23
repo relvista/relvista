@@ -26,6 +26,22 @@ describe('MDXComponents/Code', () => {
     expect(d.dataset['source']).toBe('true');
   });
 
+  it('passes frozen / frozen=false from the meta (left out: themeConfig decides)', async () => {
+    const frozen = async (meta?: string) => {
+      render(
+        <MDXCode className="language-dbml" {...(meta !== undefined ? { metastring: meta } : {})}>
+          {'Table a {\n  id int\n}\n'}
+        </MDXCode>,
+      );
+      const value = (await screen.findByTestId('diagram')).dataset['frozen'];
+      cleanup();
+      return value;
+    };
+    expect(await frozen('frozen=false')).toBe('false');
+    expect(await frozen('frozen')).toBe('true');
+    expect(await frozen('title="A"')).toBeUndefined();
+  });
+
   it('passes every other fence, a static dbml fence and inline code to the original', () => {
     render(
       <>

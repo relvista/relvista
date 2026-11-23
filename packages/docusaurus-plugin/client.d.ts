@@ -44,6 +44,12 @@ declare module '@theme/DbmlDiagram' {
      */
     readonly ssr?: boolean;
     /**
+     * Overrides `themeConfig.dbml.frozen` (default `true`): the diagram shows as arranged, and
+     * readers unlock it with the toolbar's lock button to move tables or collapse groups.
+     * `false` lets them drag tables right away, without a lock button.
+     */
+    readonly frozen?: boolean;
+    /**
      * The diagram's anchor on the page: its wrapper's `id`. `#<id>` scrolls to the diagram and
      * `#<id>&table=orders&view=billing` also opens it there (any deep-link keys: `view`, `table`,
      * `hops`, `detail`, `vp`, `q`, `path`). Default: the title's slug, else
@@ -92,6 +98,8 @@ declare module '@theme/DbmlDiff' {
     readonly palette?: 'site' | 'relvista';
     /** Overrides `themeConfig.dbml.ssr` (build-time picture and change list). */
     readonly ssr?: boolean;
+    /** Overrides `themeConfig.dbml.frozen` (see `@theme/DbmlDiagram`'s `frozen`). */
+    readonly frozen?: boolean;
     readonly className?: string;
   }
 

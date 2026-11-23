@@ -36,6 +36,7 @@ export const ThemeConfigSchema = Joi.object<ThemeConfig>({
       .valid(...PALETTE_OPTIONS)
       .default(DEFAULT_THEME_CONFIG.dbml.palette),
     ssr: Joi.boolean().default(DEFAULT_THEME_CONFIG.dbml.ssr),
+    frozen: Joi.boolean().default(DEFAULT_THEME_CONFIG.dbml.frozen),
   }).default(DEFAULT_THEME_CONFIG.dbml),
 });
 

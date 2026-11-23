@@ -14,6 +14,7 @@ import type * as Renderer from '@relvista/renderer';
 import { splitDiffFence } from '../src/meta.js';
 import { resetServerAnchors } from '../src/theme/DbmlDiagram/anchor.js';
 import { changeBadge } from '../src/theme/DbmlDiff/changes.js';
+import { siteConfig } from './stubs/useDocusaurusContext.js';
 
 const viewerProps: Array<Record<string, unknown>> = [];
 vi.mock('@relvista/renderer', async (importOriginal) => ({
@@ -253,6 +254,25 @@ describe('DbmlDiff in the browser', () => {
     expect(viewerProps.at(-1)!['ssrLayout']).toBeNull();
   });
 
+  it('is frozen like any diagram: themeConfig.dbml.frozen, and the frozen prop over it', async () => {
+    const frozenOf = async (app: ReactNode) => {
+      render(app);
+      await settle();
+      const props = viewerProps.at(-1)!;
+      cleanup();
+      return props['frozen'];
+    };
+    try {
+      expect(await frozenOf(<DbmlDiff old={OLD} new={NEW} />)).toBe(true);
+      expect(await frozenOf(<DbmlDiff old={OLD} new={NEW} frozen={false} />)).toBe(false);
+      siteConfig.themeConfig = { dbml: { frozen: false } };
+      expect(await frozenOf(<DbmlDiff old={OLD} new={NEW} />)).toBe(false);
+      expect(await frozenOf(<DbmlDiff old={OLD} new={NEW} frozen />)).toBe(true);
+    } finally {
+      siteConfig.themeConfig = {};
+    }
+  });
+
   it('a missing version shows what is missing', async () => {
     render(<DbmlDiff new={NEW} ssr={false} />);
     await settle();
@@ -283,7 +303,7 @@ describe('the dbml-diff fence', () => {
     render(
       <MDXCode
         className="language-dbml-diff"
-        metastring='title="Orders v2" height=360 id="orders-diff" summary=false'
+        metastring='title="Orders v2" height=360 id="orders-diff" summary=false frozen=false'
       >
         {'Table a {\n  id int\n}\n---\nTable a {\n  id bigint\n}\n'}
       </MDXCode>,
@@ -296,6 +316,7 @@ describe('the dbml-diff fence', () => {
     expect(d.dataset['height']).toBe('360');
     expect(d.dataset['id']).toBe('orders-diff');
     expect(d.dataset['summary']).toBe('false');
+    expect(d.dataset['frozen']).toBe('false');
     expect(screen.queryByTestId('diagram')).toBeNull();
   });
 

@@ -294,6 +294,12 @@ export interface CanvasInternalProps extends DiagramCanvasProps {
   onGeometry?: (geometry: DiagramGeometry | null) => void;
   /** The handle under another name: React 18 strips a `ref` prop from function components. */
   handleRef?: Ref<DiagramCanvasHandle>;
+  /**
+   * Read-only canvases (DbmlViewer `frozen`): the arrangement is fixed. Nothing can be dragged
+   * (whatever `draggable` says) and groups cannot be collapsed or expanded. Turning it on drops
+   * the local drags and collapses, so the arrangement of `layout` shows again; the viewport stays.
+   */
+  locked?: boolean;
 }
 
 export {
@@ -356,6 +362,7 @@ function buildNodes(
   draggable: boolean,
   editable: boolean,
   handles: ReadonlyMap<string, ReadonlySet<string>>,
+  collapsible: boolean,
 ): FlowNode[] {
   const out: FlowNode[] = [];
   for (const n of model.stickyNotes) {
@@ -429,7 +436,7 @@ function buildNodes(
       focusable: true,
       ariaLabel: `Group ${g.name}, collapsed (${memberNames.length} ${
         memberNames.length === 1 ? 'table' : 'tables'
-      }). Double-click to expand.`,
+      }).${collapsible ? ' Double-click to expand.' : ''}`,
       domAttributes: { 'data-rv-collapsed': 'true' } as FlowNode['domAttributes'],
     });
   }
@@ -710,8 +717,11 @@ function CanvasInner({
   onEdgeContextMenu,
   onPaneContextMenu,
   onPaneDoubleClick,
+  locked: lockedProp = false,
 }: CanvasInternalProps): ReactElement {
   const rf = useReactFlow<FlowNode, RefFlowEdge>();
+  /** The arrangement is fixed (read-only canvases only). */
+  const locked = lockedProp && !editable;
   const rootRef = useRef<HTMLDivElement>(null);
 
   // --- size (minimap, initial zoom, packing) ------------------------------------------------
@@ -779,14 +789,14 @@ function CanvasInner({
 
   // --- layout --------------------------------------------------------------------------------
   // Read-only canvases collapse groups locally (a double-click): an overlay on the layout prop,
-  // dropped when the layout, document or view changes.
+  // dropped when the layout, document or view changes, and when the canvas is locked.
   const [localLayout, setLocalLayout] = useState<{
     for: Layout | null;
     key: string;
     value: Layout;
   } | null>(null);
   const shownLayout =
-    !editable && localLayout && localLayout.for === layout && localLayout.key === docKey
+    !editable && !locked && localLayout && localLayout.for === layout && localLayout.key === docKey
       ? localLayout.value
       : layout;
   const detail: DetailLevel = detailLevel ?? viewDetailLevel(layout, viewName) ?? 'all';
@@ -859,7 +869,8 @@ function CanvasInner({
 
   // --- nodes (dragging moves them locally until the change is reported) ----------------------
   // The focus view is display only (its positions are not the saved ones): nothing moves there.
-  const nodeDrag = (editable || draggable) && !focused;
+  // Locked, nothing moves either (React Flow's arrow keys only move draggable nodes).
+  const nodeDrag = (editable || (draggable && !locked)) && !focused;
   // A node that draws the same as the one shown is kept, with what React Flow added to it (its
   // measured size and handle positions): a keystroke in a large schema then draws again only the
   // tables it changed (every compile gives new model objects, and spans shift with the text).
@@ -869,16 +880,26 @@ function CanvasInner({
       drawModel && drawGeometry
         ? reuseUnchanged(
             nodesRef.current,
-            buildNodes(drawModel, drawGeometry, nodeDrag, editable, handles),
+            buildNodes(drawModel, drawGeometry, nodeDrag, editable, handles, !locked),
           )
         : [],
-    [drawModel, drawGeometry, nodeDrag, editable, handles],
+    [drawModel, drawGeometry, nodeDrag, editable, handles, locked],
   );
   const [nodes, setNodes] = useState<FlowNode[]>(baseNodes);
   const [nodesFor, setNodesFor] = useState(baseNodes);
   if (nodesFor !== baseNodes) {
     setNodesFor(baseNodes);
     setNodes(baseNodes);
+  }
+  // Locking puts the arrangement of `layout` back: local collapses (shownLayout above) and local
+  // drags go. The viewport is left where it is.
+  const [lockedFor, setLockedFor] = useState(locked);
+  if (lockedFor !== locked) {
+    setLockedFor(locked);
+    if (locked) {
+      setLocalLayout(null);
+      setNodes(baseNodes);
+    }
   }
   nodesRef.current = nodes;
 
@@ -1154,6 +1175,7 @@ function CanvasInner({
     viewName,
     resetKey,
     editable,
+    locked,
     detail,
     edges_,
     colorMode,
@@ -1185,6 +1207,7 @@ function CanvasInner({
     viewName,
     resetKey,
     editable,
+    locked,
     detail,
     edges_,
     colorMode,
@@ -1237,10 +1260,11 @@ function CanvasInner({
   );
   /**
    * Collapses or expands a group (rule 1). Editable: one 'settings' change; read-only: a local
-   * overlay on the layout, never reported.
+   * overlay on the layout, never reported; locked: nothing.
    */
   const toggleCollapse = useCallback((id: string) => {
     const L = live.current;
+    if (L.locked) return;
     const box = L.current?.groups[id];
     if (!box) return;
     const collapsed = !box.collapsed;
@@ -1986,6 +2010,7 @@ function CanvasInner({
       data-rv-color-mode={colorMode}
       data-rv-layout={layoutFinal ? 'done' : 'pending'}
       data-rv-editable={editable ? 'true' : 'false'}
+      {...(locked ? { 'data-rv-locked': 'true' } : {})}
       {...(focused ? { 'data-rv-focus': 'true' } : {})}
       style={style}
       onDoubleClick={onRootDoubleClick}

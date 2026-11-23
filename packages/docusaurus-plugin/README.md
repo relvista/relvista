@@ -41,9 +41,10 @@ export default {
     dbml: {
       height: 480, // default diagram height: px, or any CSS length
       detailLevel: 'all', // 'all' | 'keys' | 'names'
-      toolbar: ['view', 'zoom', 'fit', 'fullscreen', 'export', 'print', 'open-in-editor'],
+      toolbar: ['view', 'zoom', 'fit', 'lock', 'fullscreen', 'export', 'print', 'open-in-editor'],
       palette: 'site', // 'site': your Infima colours and fonts; 'relvista': relvista's own
       ssr: true, // draw each diagram as a static SVG at build time (default true)
+      frozen: true, // readers unlock a diagram to move tables (default true; false: as in 1.0)
       // editorUrl: false, // hides "Open in editor" (default: the hosted relvista editor)
     },
   },
@@ -84,6 +85,7 @@ Table customers {
 | `detail` | `all`, `keys` or `names`                                     |
 | `static` | Show the fence as highlighted DBML code instead of a diagram |
 | `ssr`    | `ssr=false` skips the build-time picture for this fence      |
+| `frozen` | `frozen=false`: readers drag tables right away (no lock)     |
 
 ## Component
 
@@ -102,10 +104,24 @@ import billing from './db/billing.dbml';
 
 Props: `value` (string or `{ files, entry }`), `src` (URL, `baseUrl` is added), `layout` (object or URL),
 `view`, `height`, `title`, `source`, `detailLevel`, `toolbar`, `editorUrl`, `palette`, `ssr`,
-`className`.
+`frozen`, `id`, `className`. `@theme/DbmlDiff` (` ```dbml-diff ` fences) takes `frozen` too.
 
 For TypeScript, add `"@relvista/docusaurus-plugin/client"` to `compilerOptions.types` to type `.dbml`
 imports and `@theme/DbmlDiagram`.
+
+## Frozen diagrams
+
+Diagrams are frozen by default (`themeConfig.dbml.frozen: true`): they show the arrangement you
+gave them (a layout file, or the build-time auto-layout) and readers cannot move tables, notes or
+groups, nor collapse or expand groups. They can still pan, zoom, fit, search, highlight paths,
+focus, change the detail level, open table cards, export, print and copy links. The toolbar's
+`lock` button (**Unlock layout**, after **Fit**) lets a reader rearrange a diagram anyway; nothing
+is saved, and **Lock layout** puts everything back. The build-time picture is the same either way.
+
+This is new in 1.1. For the 1.0 behaviour (tables drag right away, no lock button) set
+`themeConfig.dbml.frozen: false`, or `frozen=false` on a fence and `frozen={false}` on a component
+for one diagram; `frozen` / `frozen={true}` freezes one diagram on a site that turned it off. A
+site with its own `toolbar` list needs `'lock'` in it for readers to unlock its diagrams.
 
 ## Colours and fonts
 

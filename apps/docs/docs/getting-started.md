@@ -61,8 +61,20 @@ const config: Config = {
     dbml: {
       height: 480, // px, or any CSS length such as '60vh'
       detailLevel: 'all', // 'all' | 'keys' | 'names'
-      toolbar: ['view', 'search', 'detail', 'zoom', 'fit', 'fullscreen', 'export', 'print', 'link'],
+      toolbar: [
+        'view',
+        'search',
+        'detail',
+        'zoom',
+        'fit',
+        'lock',
+        'fullscreen',
+        'export',
+        'print',
+        'link',
+      ],
       palette: 'site', // 'site' | 'relvista'
+      frozen: true, // readers unlock a diagram with the lock button; false: they drag right away
     },
   },
 };
@@ -70,14 +82,15 @@ const config: Config = {
 export default config;
 ```
 
-| `themeConfig.dbml` | Default       | Meaning                                                                                                                                                                                      |
-| ------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `height`           | `480`         | Height of each diagram. A number is pixels; a string is any CSS length.                                                                                                                      |
-| `detailLevel`      | `'all'`       | `all` columns, `keys` only (primary and foreign keys, unique columns), or table `names` only.                                                                                                |
-| `toolbar`          | every button  | Toolbar buttons in order: `view`, `search`, `detail`, `zoom`, `fit`, `fullscreen`, `export`, `print`, `link`, `open-in-editor` ([toolbar](./usage.mdx#toolbar-fullscreen-export-and-print)). |
-| `editorUrl`        | hosted editor | Base URL of the relvista [editor](./editor.md) for the "Open in editor" button; `false` hides it.                                                                                            |
-| `palette`          | `'site'`      | `site`: diagrams take your site's Infima colours and fonts; `relvista`: relvista's own palette (see [Colours](./colours.md)).                                                                |
-| `ssr`              | `true`        | Draw each diagram as a static SVG at build time, shown before (and without) JavaScript (see [Usage](./usage.mdx#build-time-pictures)).                                                       |
+| `themeConfig.dbml` | Default       | Meaning                                                                                                                                                                                              |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `height`           | `480`         | Height of each diagram. A number is pixels; a string is any CSS length.                                                                                                                              |
+| `detailLevel`      | `'all'`       | `all` columns, `keys` only (primary and foreign keys, unique columns), or table `names` only.                                                                                                        |
+| `toolbar`          | every button  | Toolbar buttons in order: `view`, `search`, `detail`, `zoom`, `fit`, `lock`, `fullscreen`, `export`, `print`, `link`, `open-in-editor` ([toolbar](./usage.mdx#toolbar-fullscreen-export-and-print)). |
+| `editorUrl`        | hosted editor | Base URL of the relvista [editor](./editor.md) for the "Open in editor" button; `false` hides it.                                                                                                    |
+| `palette`          | `'site'`      | `site`: diagrams take your site's Infima colours and fonts; `relvista`: relvista's own palette (see [Colours](./colours.md)).                                                                        |
+| `ssr`              | `true`        | Draw each diagram as a static SVG at build time, shown before (and without) JavaScript (see [Usage](./usage.mdx#build-time-pictures)).                                                               |
+| `frozen`           | `true`        | Readers cannot move tables or collapse groups until they press the toolbar's lock button; `false` lets them drag right away, as in relvista 1.0 (see [Usage](./usage.mdx#frozen-diagrams)).          |
 
 The one plugin option, `highlight` (default `true`), adds DBML syntax highlighting for
 ` ```dbml static ` blocks and the Source tab: `plugins: [['@relvista/docusaurus-plugin', { highlight: false }]]`.
@@ -129,10 +142,11 @@ Table posts {
 }
 ```
 
-Drag the tables, scroll to zoom, hover a table to trace its relationships and click it for details.
-The toolbar [searches](./exploring.mdx) the diagram, changes the detail level, exports it
-(SVG, PNG, PDF), copies a link to it, and **Open in editor** opens it in the
-[editor](./editor.md).
+Scroll to zoom, drag to pan, hover a table to trace its relationships and click it for details.
+The diagram is [frozen](./usage.mdx#frozen-diagrams): readers move its tables only after they
+unlock it with the toolbar's lock button. The toolbar also
+[searches](./exploring.mdx) the diagram, changes the detail level, exports it (SVG, PNG, PDF),
+copies a link to it, and **Open in editor** opens it in the [editor](./editor.md).
 
 ## TypeScript
 

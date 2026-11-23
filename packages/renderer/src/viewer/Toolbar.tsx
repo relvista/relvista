@@ -20,20 +20,27 @@ import {
   FitIcon,
   LayersIcon,
   LinkIcon,
+  LockIcon,
   PrintIcon,
   RowsIcon,
   SearchIcon,
+  UnlockIcon,
   ZoomInIcon,
   ZoomOutIcon,
 } from './icons.js';
 
-/** A viewer toolbar button. */
+/**
+ * A viewer toolbar button. `'lock'` (lock / unlock the layout) shows only in a `frozen` viewer
+ * whose nodes can be dragged; `'link'` only with an `anchor`; `'open-in-editor'` only with an
+ * `editorUrl`.
+ */
 export type ToolbarItem =
   | 'view'
   | 'search'
   | 'detail'
   | 'zoom'
   | 'fit'
+  | 'lock'
   | 'fullscreen'
   | 'export'
   | 'print'
@@ -47,6 +54,7 @@ export const DEFAULT_TOOLBAR: ToolbarItem[] = [
   'detail',
   'zoom',
   'fit',
+  'lock',
   'fullscreen',
   'export',
   'print',
@@ -78,6 +86,10 @@ export interface ToolbarProps {
   onDetailChange?(level: DetailLevel): void;
   /** 'link': copies a link to the diagram's current state. Without it the button is hidden. */
   onCopyLink?(): void;
+  /** 'lock': whether the layout is locked now. */
+  locked?: boolean;
+  /** 'lock': locks or unlocks the layout. Without it the button is hidden. */
+  onToggleLock?(): void;
   /** Offer "PDF…" in the export menu. Default true. */
   pdf?: boolean;
 }
@@ -363,6 +375,24 @@ export function Toolbar(p: ToolbarProps): ReactElement {
     nav.push(
       <Button key="fit" title="Fit to view" item="fit" onClick={p.onFit}>
         <FitIcon />
+      </Button>,
+    );
+  }
+  if (has('lock') && p.onToggleLock) {
+    // Pressed while locked (like Fullscreen while full screen); the label says what a press does.
+    nav.push(
+      <Button
+        key="lock"
+        title={
+          p.locked
+            ? 'Unlock layout (to move tables and collapse groups)'
+            : 'Lock layout (puts everything back where it was)'
+        }
+        item="lock"
+        pressed={!!p.locked}
+        onClick={p.onToggleLock}
+      >
+        {p.locked ? <LockIcon /> : <UnlockIcon />}
       </Button>,
     );
   }

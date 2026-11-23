@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: Usage
-description: Code fences, the DbmlDiagram component, .dbml files, layout files, views, anchors, the toolbar, export and print.
+description: Code fences, the DbmlDiagram component, .dbml files, layout files, frozen diagrams, views, anchors, the toolbar, export and print.
 ---
 
 import DbmlDiagram from '@theme/DbmlDiagram';
@@ -43,17 +43,18 @@ Table customers {
 }
 ```
 
-| Meta     | Example                           | Meaning                                                              |
-| -------- | --------------------------------- | -------------------------------------------------------------------- |
-| `title`  | `title="Billing"`                 | Caption in the diagram's top-left corner; also the export file name. |
-| `height` | `height=500`, `height=60vh`       | Height of this diagram. Overrides `themeConfig.dbml.height`.         |
-| `view`   | `view="billing"`                  | Start in a `DiagramView` declared in the DBML.                       |
-| `layout` | `layout="/layouts/x.layout.json"` | Saved table positions, from a file in `static/` (see below).         |
-| `source` | `source`                          | Adds **Diagram** / **Source** tabs so readers can see the DBML.      |
-| `detail` | `detail=keys`                     | `all` columns, `keys` only, or table `names` only.                   |
-| `static` | `static`                          | Show the fence as highlighted DBML code instead of a diagram.        |
-| `ssr`    | `ssr=false`                       | No build-time picture for this fence (see below).                    |
-| `id`     | `id="billing"`                    | The diagram's anchor: `#billing` links to it ([anchors](#anchors)).  |
+| Meta     | Example                           | Meaning                                                                   |
+| -------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `title`  | `title="Billing"`                 | Caption in the diagram's top-left corner; also the export file name.      |
+| `height` | `height=500`, `height=60vh`       | Height of this diagram. Overrides `themeConfig.dbml.height`.              |
+| `view`   | `view="billing"`                  | Start in a `DiagramView` declared in the DBML.                            |
+| `layout` | `layout="/layouts/x.layout.json"` | Saved table positions, from a file in `static/` (see below).              |
+| `source` | `source`                          | Adds **Diagram** / **Source** tabs so readers can see the DBML.           |
+| `detail` | `detail=keys`                     | `all` columns, `keys` only, or table `names` only.                        |
+| `static` | `static`                          | Show the fence as highlighted DBML code instead of a diagram.             |
+| `ssr`    | `ssr=false`                       | No build-time picture for this fence (see below).                         |
+| `frozen` | `frozen=false`                    | Readers can drag tables right away ([frozen diagrams](#frozen-diagrams)). |
+| `id`     | `id="billing"`                    | The diagram's anchor: `#billing` links to it ([anchors](#anchors)).       |
 
 Values can be double-quoted, single-quoted or bare; a bare key is `true`.
 
@@ -98,6 +99,7 @@ import DbmlDiagram from '@theme/DbmlDiagram';
 | `editorUrl`   | `string`                         | Overrides `themeConfig.dbml.editorUrl`.                                                       |
 | `palette`     | `'site'` \| `'relvista'`         | Overrides `themeConfig.dbml.palette` ([colours](./colours.md)).                               |
 | `ssr`         | `boolean`                        | Overrides `themeConfig.dbml.ssr` ([build-time pictures](#build-time-pictures)).               |
+| `frozen`      | `boolean`                        | Overrides `themeConfig.dbml.frozen` ([frozen diagrams](#frozen-diagrams)).                    |
 | `id`          | `string`                         | The diagram's anchor on the page ([anchors](#anchors)).                                       |
 | `className`   | `string`                         | Class on the diagram's wrapper, e.g. to override `--rv-*` variables for one diagram.          |
 
@@ -177,6 +179,62 @@ import layout from './schema.dbml.layout.json';
 
 An invalid layout file shows an error explaining what is wrong instead of a diagram.
 
+## Frozen diagrams
+
+Diagrams are **frozen** by default: they keep the arrangement you gave them (your layout file, or
+the auto-layout of the build) and readers cannot rearrange it. Everything else works: panning,
+zooming, fit, fullscreen, views, search and paths, detail levels, focus, table cards, export,
+print and links. Dragging a table pans the diagram instead of moving the table, and
+double-clicking a group does not collapse or expand it.
+
+A reader who wants to play with the diagram presses the toolbar's lock button, **Unlock layout**:
+tables, notes and groups can then be dragged and groups collapsed. Nothing is saved, and pressing
+it again, **Lock layout**, puts everything back where you arranged it, without moving the view.
+
+To let readers drag tables right away, with no lock button (as in relvista 1.0), turn freezing off
+for the whole site, or for one diagram with `frozen=false` on a fence or `frozen={false}` on
+`<DbmlDiagram>` and `<DbmlDiff>`. On a site that turned it off, `frozen` freezes one diagram.
+
+```js title="docusaurus.config.js"
+themeConfig: {
+  dbml: {
+    frozen: false, // readers drag tables right away
+  },
+},
+```
+
+````md
+```dbml title="Not frozen" frozen=false
+Table users { ... }
+```
+````
+
+```dbml title="Not frozen: drag the tables" height=360 frozen=false id="not-frozen"
+Table users {
+  id integer [pk]
+  name varchar
+}
+
+Table posts {
+  id integer [pk]
+  author_id integer [ref: > users.id]
+  title varchar
+}
+
+Table comments {
+  id integer [pk]
+  post_id integer [ref: > posts.id]
+  author_id integer [ref: > users.id]
+}
+
+TableGroup content {
+  posts
+  comments
+}
+```
+
+A frozen diagram whose `toolbar` leaves out `lock` stays frozen: its readers cannot unlock it.
+
 ## Views
 
 A `DiagramView` in the DBML names a subset of tables. The toolbar's view menu switches between them,
@@ -203,6 +261,7 @@ Every diagram has a toolbar in its top-right corner. Its buttons, in order, are 
 | `detail`         | **Detail level**: all columns, keys only, or table names.                                                    |
 | `zoom`           | **Zoom in / out** — or use the scroll wheel, pinch and drag on the canvas.                                   |
 | `fit`            | **Fit to view**.                                                                                             |
+| `lock`           | **Unlock layout** / **Lock layout**, on [frozen diagrams](#frozen-diagrams) only.                            |
 | `fullscreen`     | **Fullscreen** — the diagram fills the screen; <kbd>Esc</kbd> leaves.                                        |
 | `export`         | **Export**: **SVG** (vector, with embedded styles), **PNG** (2× resolution) or **PDF…** (tiled or per view). |
 | `print`          | **Print** just the diagram, scaled to fit a landscape page.                                                  |
@@ -212,15 +271,15 @@ Every diagram has a toolbar in its top-right corner. Its buttons, in order, are 
 ```js title="docusaurus.config.js"
 themeConfig: {
   dbml: {
-    // A reading-only toolbar: no export, print or editor link.
+    // A reading-only toolbar: no export, print or editor link, and no unlocking.
     toolbar: ['view', 'search', 'detail', 'zoom', 'fit', 'fullscreen', 'link'],
   },
 },
 ```
 
 Exports use the current colour mode, the colours and fonts the diagram shows and its detail level,
-and include tables you dragged where you left them. Prints use the same detail level and light
-colours. See [Export and print](./export.md) for the PDF options, and
+and include tables you dragged (in a diagram you unlocked) where you left them. Prints use the same
+detail level and light colours. See [Export and print](./export.md) for the PDF options, and
 [Exploring diagrams](./exploring.mdx) for search, paths, detail levels and focus.
 
 **Open in editor** carries the DBML, the layout file (when the diagram has one) and the view and
