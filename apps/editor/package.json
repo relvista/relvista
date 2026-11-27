@@ -14,8 +14,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@dbml/core": "12.1.0",
-    "@dbml/parse": "12.1.0",
+    "@dbml/core": "13.0.0",
+    "@dbml/parse": "13.0.0",
     "@relvista/core": "workspace:*",
     "@relvista/renderer": "workspace:*",
     "elkjs": "0.12.1",
